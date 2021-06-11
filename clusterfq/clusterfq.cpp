@@ -12,9 +12,11 @@
 #include "client.h"
 #include "util.h"
 #include "message.h"
+#include "clusterfq.h"
 
 #include <string>
 #include <vector>
+#include <sstream>
 
 #ifdef _WIN32
 #include <ws2def.h>
@@ -84,7 +86,17 @@ int main(int argc, char **argv) {
                 address_factory_clear();
             } else if (strstr(args[0].c_str(), "message_send") != nullptr) {
                 message_send(stoi(args[1]), stoi(args[2]), (unsigned char *)args[3].c_str(), strlen(args[3].c_str()));
-            }
+            } else if (strstr(args[0].c_str(), "contact_save") != nullptr) {
+                struct identity* i = identity_get(stoi(args[1]));
+                struct contact* c = contact_get(&i->contacts, stoi(args[2]));
+                stringstream cp;
+                cp << "./identities/" << i->id << "/contacts/" << c->id << "/";
+                contact_save(c, cp.str());
+            } else if (strstr(args[0].c_str(), "contact_stats_dump") != nullptr) {
+                struct identity *i = identity_get(stoi(args[1]));
+                struct contact* c = contact_get(&i->contacts, stoi(args[2]));
+                contact_stats_dump(c->cs, stoi(args[3]), stoi(args[4]));
+            } 
         }
         shell_cmd_queue.clear();
         mutex_release(&shell_cmd_lock);

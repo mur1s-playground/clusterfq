@@ -105,12 +105,22 @@ void network_packet_append_str(struct NetworkPacket* packet, const char* str, in
 		}
 	}
 }
+
 void network_packet_append_int(struct NetworkPacket* packet, int num) {
 	if (network_packet_has_space(packet, sizeof(int))) {
 		if (network_packet_alloc_on_demand(packet, sizeof(int))) {
 			memcpy((void*)&(packet->data[packet->position]), (void*)&num, sizeof(int));
 			/*			printf("rereading int: %s\n", network_packet_read_int(packet));*/
 			packet->position += sizeof(int);
+		}
+	}
+}
+
+void network_packet_append_longlong(struct NetworkPacket* packet, long long num) {
+	if (network_packet_has_space(packet, sizeof(long long))) {
+		if (network_packet_alloc_on_demand(packet, sizeof(long long))) {
+			memcpy((void*)&(packet->data[packet->position]), (void*)&num, sizeof(long long));
+			packet->position += sizeof(long long);
 		}
 	}
 }
@@ -129,6 +139,13 @@ int network_packet_read_int(struct NetworkPacket* packet) {
 	int result;
 	memcpy((void*)&result, (void*)&(packet->data[packet->position]), sizeof(int));
 	packet->position += sizeof(int);
+	return result;
+}
+
+long long network_packet_read_longlong(struct NetworkPacket* packet) {
+	long long result;
+	memcpy((void*)&result, (void*)&(packet->data[packet->position]), sizeof(long long));
+	packet->position += sizeof(long long);
 	return result;
 }
 

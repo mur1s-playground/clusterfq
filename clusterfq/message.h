@@ -9,6 +9,7 @@ using namespace std;
 enum message_type {
 	MT_ESTABLISH_CONTACT,
 	MT_ESTABLISH_SESSION,
+	MT_DROP_SESSION,
 	MT_MESSAGE,
 	MT_RECEIPT,
 };
@@ -33,5 +34,5 @@ struct message_meta {
 };
 
 void message_send_receipt(struct identity* i, struct contact* c, struct packetset* ps, char* hash_id, unsigned int chunk_id);
-void message_send_session_key(struct identity* i, struct contact* c);
+void message_send_session_key(struct identity* i, struct contact* c, bool prepend = false);
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);

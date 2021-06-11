@@ -63,6 +63,9 @@
     <ClCompile Include="packetset.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="contact_stats.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="address_factory.h">
@@ -111,6 +114,9 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="clusterfq.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="contact_stats.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

@@ -29,13 +29,10 @@ void packetset_static_init() {
 }
 
 void packetset_loop(void* unused) {
-	std::cout << "packetset_loop started\n";
 	while (true) {
 		mutex_wait_for(&packetset_loop_lock);
-		std::cout << "receipts size: " << packetset_receipts_out.size() << "\n"; 
 		for (int pro = 0 ; pro < packetset_receipts_out.size(); pro++) {
 			struct message_receipt* mr = &packetset_receipts_out[pro];
-			std::cout << "sending receipt:" << mr  << "\n";
 			client_send_to(mr->address, mr->packet, mr->packet_len);
 			free(mr->packet);
 		}
@@ -43,7 +40,6 @@ void packetset_loop(void* unused) {
 
 		struct contact *c = contact_static_get_pending();
 		if (c == nullptr) {
-			std::cout << "nothing pending\n";
 			break;
 		}
 
@@ -51,24 +47,35 @@ void packetset_loop(void* unused) {
 		mutex_wait_for(&c->outgoing_messages_lock);
 		if (c->outgoing_messages.size() > 0) {
 			for (int om = 0; om < c->outgoing_messages.size(); om++) {
-				std::cout << "something to send\n";
 				struct message_meta* mm = c->outgoing_messages[om];
+
+				//prepend new session, if the session was dropped, while a message was in queue
+				if (mm->mt == MT_MESSAGE && c->session_key.private_key_len == 0) {
+					struct identity* i = identity_get(mm->identity_id);
+					message_send_session_key(i, c, true);
+					break;
+				}
+
 				if (mm->packetset_id == UINT_MAX) {
 					packetset_create(mm);
 				}
 				struct packetset* ps = packetset_from_id(mm->packetset_id);
-				unsigned int chunks_left = packetset_prepare_send(ps);
-				std::cout << om << ":"<<chunks_left << " chunks left\n";
-				if (chunks_left > 0) break;
+
+				if (!ps->complete) {
+					if (ps->transmission_start == 0 || 
+						(ps->transmission_start > 0 && time(nullptr) - ps->transmission_latest_sent > 5)) {
+						unsigned int chunks_left = packetset_prepare_send(ps);
+						if (chunks_left > 0) break;
+						ps->complete = true;
+					}
+				}
 			}
 		}
 		mutex_release(&c->outgoing_messages_lock);
-
-		util_sleep(5000);
+		util_sleep(16);
 	}
 	packetset_loop_running = false;
 	thread_terminated(&main_thread_pool, packetset_loop_thread_id);
-	std::cout << "packetset_loop finished\n";
 	mutex_release(&packetset_loop_lock);
 }
 
@@ -103,7 +110,7 @@ unsigned int packetset_create(struct message_meta* mm) {
 
 	int chunk_size = 0;
 
-	if (ps.mm->mt == MT_ESTABLISH_CONTACT || ps.mm->mt == MT_ESTABLISH_SESSION) {
+	if (ps.mm->mt == MT_ESTABLISH_CONTACT || ps.mm->mt == MT_ESTABLISH_SESSION || ps.mm->mt == MT_DROP_SESSION) {
 		chunk_size = 128;
 	} else if (ps.mm->mt == MT_MESSAGE) {
 		chunk_size = 1024;
@@ -124,6 +131,13 @@ unsigned int packetset_create(struct message_meta* mm) {
 	ps.chunks_sent_ct = (unsigned int*)malloc(chunks * sizeof(unsigned int));
 	memset(ps.chunks_sent_ct, 0, chunks * sizeof(unsigned int));
 
+	ps.transmission_start = 0;
+	ps.transmission_latest_sent = 0;
+	ps.transmission_first_receipt = 0;
+	ps.transmission_last_receipt = 0;
+
+	ps.complete = false;
+
 	packetsets.insert(pair<int, struct packetset>(free_id, ps));
 	
 	return free_id;
@@ -141,6 +155,13 @@ struct packetset packetset_create(unsigned int chunks_ct) {
 	
 	ps.chunks_sent_ct = (unsigned int*)malloc(chunks_ct * sizeof(unsigned int));
 	memset(ps.chunks_sent_ct, 0, chunks_ct * sizeof(unsigned int));
+
+	ps.transmission_start = 0;
+	ps.transmission_latest_sent = 0;
+	ps.transmission_first_receipt = 0;
+	ps.transmission_last_receipt = 0;
+
+	ps.complete = false;
 
 	return ps;
 }
@@ -165,8 +186,14 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 			continue;
 		}
 		sent_ct++;
+		contact_stats_update(con->cs, CSE_CHUNK_SENT);
+
 		if (ps->chunks_sent_ct[c] > 0) {
 			free(ps->chunks[c]);
+		} else {
+			if (ps->transmission_start == 0) {
+				ps->transmission_start = time(nullptr);
+			}
 		}
 
 		int message_len = ps->chunk_size;
@@ -185,16 +212,23 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		network_packet_append_int(&np, ps->chunks_ct);
 		network_packet_append_int(&np, ps->chunks_sent_ct[c] + 1);
 
-		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION) {
+		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION || ps->mm->mt == MT_DROP_SESSION) {
 			ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
 		} else if (ps->mm->mt == MT_MESSAGE) {
 			ps->chunks[c] = (unsigned char*)crypto_key_sym_encrypt(&con->session_key, (unsigned char *)np.data, np.position, (int *)&ps->chunks_length[c]);
-			std::cout << "\nsymmetric enc length: " << (int*)&ps->chunks_length[c] << "\n";
 		}
 		client_send_to(con->address, ps->chunks[c], ps->chunks_length[c]);
 		ps->chunks_sent_ct[c]++;
+		ps->transmission_latest_sent = time(nullptr);
 
 		message_start += ps->chunk_size;
+	}
+	if (sent_ct == 0) {
+		int total_len = 0;
+		for (int ch = 0; ch < ps->chunks_ct; ch++) {
+			total_len += ps->chunks_length[ch];
+		}
+		contact_stats_update(con->cs, CSE_TIME_PER_256_CHUNK_OUT, (ps->transmission_last_receipt - ps->transmission_start) * 256.0f/total_len);
 	}
 	return sent_ct;
 }

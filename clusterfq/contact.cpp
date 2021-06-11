@@ -41,9 +41,13 @@ void contact_create_open(struct contact* c, string name_placeholder, string addr
 	c->pub_key.public_key_len = 0;
 
 	c->session_key.private_key_len = 0;
-
+	c->session_established = 0;
+	
 	c->address = "";
 	c->address_rev = address_rev;
+
+	c->cs = new struct contact_stats();
+	contact_stats_init(c->cs);
 
 	mutex_init(&c->outgoing_messages_lock);
 }
@@ -62,6 +66,10 @@ void contact_create(struct contact* c, string name, string pubkey, string addres
 	c->address_rev = "";
 
 	c->session_key.private_key_len = 0;
+	c->session_established = 0;
+
+	c->cs = new struct contact_stats();
+	contact_stats_init(c->cs);
 
 	mutex_init(&c->outgoing_messages_lock);
 }
@@ -82,9 +90,7 @@ void contact_save(struct contact* c, string path) {
 	util_file_write_line(name_path.str(), c->name);
 
 	if (c->pub_key.public_key_len > 0) {
-		stringstream pk_path;
-		pk_path << path << "pubkey";
-		util_file_write_line(pk_path.str(), c->pub_key.public_key);
+		contact_pubkey_save(c, path);
 	}
 
 	if (c->address.length() > 0) {
@@ -100,10 +106,12 @@ void contact_save(struct contact* c, string path) {
 	}
 
 	if (c->session_key.private_key_len > 0) {
-		stringstream sk_path;
-		sk_path << path << "sessionkey";
-		util_file_write_line(sk_path.str(), c->session_key.private_key);
+		contact_sessionkey_save(c, path);
 	}
+
+	stringstream contact_stats_path;
+	contact_stats_path << path << "contact_stats.bin";
+	util_file_write_binary(contact_stats_path.str(), (unsigned char *)c->cs, sizeof(struct contact_stats));
 }
 
 void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, string path) {
@@ -113,6 +121,37 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 	name_path << path << "name";
 	c->name = util_file_read_lines(name_path.str(), true)[0];
 	
+	contact_pubkey_load(c, path);
+
+	stringstream add_path;
+	add_path << path << "address";
+	vector<string> address = util_file_read_lines(add_path.str(), true);
+	if (address.size() > 0) {
+		c->address = address[0];
+	} else {
+		c->address = "";
+	}
+
+	stringstream add_r_path;
+	add_r_path << path << "address_rev";
+	vector<string> address_rev = util_file_read_lines(add_r_path.str(), true);
+	if (address_rev.size() > 0) {
+		c->address_rev = address_rev[0];
+		address_factory_add_address(address_rev[0], AFST_CONTACT, identity_id, c->id);
+	} else {
+		c->address_rev = "";
+	}
+
+	contact_sessionkey_load(c, path);
+	c->session_key.public_key_len = 0;
+	crypto_key_name_set(&c->session_key, c->name.c_str(), c->name.length());
+
+	contact_stats_load(c, path);
+
+	mutex_init(&c->outgoing_messages_lock);
+}
+
+void contact_pubkey_load(struct contact* c, string path) {
 	stringstream pk_path;
 	pk_path << path << "pubkey";
 	vector<string> pubkey = util_file_read_lines(pk_path.str(), true);
@@ -134,49 +173,79 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 		c->pub_key.public_key[prk.str().length()] = '\0';
 		c->pub_key.public_key_len = prk.str().length() + 1;
 	}
+}
 
-	stringstream add_path;
-	add_path << path << "address";
-	vector<string> address = util_file_read_lines(add_path.str(), true);
-	if (address.size() > 0) {
-		c->address = address[0];
-	} else {
-		c->address = "";
-	}
+void contact_pubkey_save(struct contact* c, unsigned int identity_id) {
+	stringstream path;
+	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+	contact_pubkey_save(c, path.str());
+}
 
-	stringstream add_r_path;
-	add_r_path << path << "address_rev";
-	vector<string> address_rev = util_file_read_lines(add_r_path.str(), true);
-	if (address_rev.size() > 0) {
-		c->address_rev = address_rev[0];
-		address_factory_add_address(address_rev[0], AFST_CONTACT, identity_id, c->id);
-	} else {
-		c->address_rev = "";
-	}
+void contact_pubkey_save(struct contact* c, string path) {
+	stringstream pk_path;
+	pk_path << path << "pubkey";
+	util_file_write_line(pk_path.str(), c->pub_key.public_key);
+}
 
+void contact_sessionkey_load(struct contact* c, string path) {
+	unsigned char buffer[1024];
 	stringstream sk_path;
-	sk_path << path << "sessionkey";
-	vector<string> sessionkey = util_file_read_lines(sk_path.str(), true);
-
-	crypto_key_name_set(&c->session_key, c->name.c_str(), c->name.length());
-	c->session_key.private_key_len = 0;
-	c->session_key.public_key_len = 0;
-
-	if (sessionkey.size() > 0) {
-		stringstream prk;
-		for (int pk = 0; pk < sessionkey.size(); pk++) {
-			prk << sessionkey[pk] << "\n";
-		}
-		string prk_s = prk.str();
-		const char* prk_c = prk_s.c_str();
-
-		c->session_key.private_key = (char*)malloc(prk.str().length() + 1);
-		memcpy(c->session_key.private_key, prk_c, prk.str().length());
-		c->session_key.private_key[prk.str().length()] = '\0';
-		c->session_key.private_key_len = prk.str().length() + 1;
+	sk_path << path << "sessionkey.bin";
+	size_t out_len = 0;
+	util_file_read_binary(sk_path.str(), (unsigned char*)&buffer, &out_len);
+	stringstream sk_meta;
+	sk_meta << path << "sessionkey.meta";
+	vector<string> sessionkey_meta = util_file_read_lines(sk_meta.str(), true);
+	if (sessionkey_meta.size() > 0) {
+		vector<string> splt = util_split(sessionkey_meta[0], ";");
+		c->session_established = stol(splt[0]);
+		c->session_key.private_key = (char*)malloc(out_len + 1);
+		memcpy(c->session_key.private_key, &buffer, out_len);
+		c->session_key.private_key[out_len] = '\0';
+		c->session_key.private_key_len = out_len;
+	} else {
+		c->session_key.private_key_len = 0;
 	}
+}
 
-	mutex_init(&c->outgoing_messages_lock);
+void contact_sessionkey_save(struct contact* c, string path) {
+	stringstream sk_path;
+	sk_path << path << "sessionkey.bin";
+	util_file_write_binary(sk_path.str(), (unsigned char*)c->session_key.private_key, c->session_key.private_key_len);
+	stringstream sk_meta;
+	sk_meta << path << "sessionkey.meta";
+	stringstream sk_meta_data;
+	sk_meta_data << c->session_established << ";" << c->session_key.private_key_len;
+	util_file_write_line(sk_meta.str(), sk_meta_data.str());
+}
+
+void contact_sessionkey_save(struct contact* c, unsigned int identity_id) {
+	stringstream path;
+	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+	contact_sessionkey_save(c, path.str());
+}
+
+void contact_stats_save(struct contact* c, unsigned int identity_id) {
+	stringstream path;
+	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+	contact_stats_save(c, path.str());
+}
+
+void contact_stats_save(struct contact* c, string path) {
+	stringstream contact_stats_path;
+	contact_stats_path << path << "contact_stats.bin";
+	util_file_write_binary(contact_stats_path.str(), (unsigned char*)c->cs, sizeof(struct contact_stats));
+}
+
+void contact_stats_load(struct contact* c, string path) {
+	c->cs = new struct contact_stats();
+	stringstream contact_stats_path;
+	contact_stats_path << path << "contact_stats.bin";
+	size_t out_len_ = 0;
+	util_file_read_binary(contact_stats_path.str(), (unsigned char*)c->cs, &out_len_);
+	if (out_len_ == 0) {
+		contact_stats_init(c->cs);
+	}
 }
 
 void contact_dump(struct contact* c) {
@@ -188,9 +257,13 @@ void contact_dump(struct contact* c) {
 	crypto_key_dump(&c->session_key);
 }
 
-void contact_add_message(struct contact* c, struct message_meta* mm) {
+void contact_add_message(struct contact* c, struct message_meta* mm, bool prepend) {
 	mutex_wait_for(&c->outgoing_messages_lock);
-	c->outgoing_messages.push_back(mm);
+	if (prepend) {
+		c->outgoing_messages.insert(c->outgoing_messages.begin(), mm);
+	} else {
+		c->outgoing_messages.push_back(mm);
+	}
 	mutex_release(&c->outgoing_messages_lock);
 	mutex_wait_for(&contact_message_pending_lock);
 	bool found = false;
@@ -216,7 +289,6 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	if (c->session_key.private_key_len > 0 && c->session_key.public_key_len == 0) {
 		//SESSION KEY HAS BEEN ESTABLISHED
 		session_key_established = true;
-		std::cout << "symmetric dec packet len: " << packet_len << "\n";
 		decrypted = (char *)crypto_key_sym_decrypt(&c->session_key, packet_buffer_packet, packet_len, &out_len);
 	}
 	if (decrypted == nullptr) {
@@ -226,6 +298,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 	if (decrypted == nullptr) {
 		std::cout << "decryption failed\n";
+		contact_stats_update(c->cs, CSE_POLLUTION);
 		return false;
 	}
 
@@ -235,19 +308,16 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	char* data = network_packet_read_str(np, &data_len);
 	int hash_len = 0;
 	char* hash_id = network_packet_read_str(np, &hash_len);
-	//				  std::cout << "hash_id: " << hash_id << std::endl;
 	int chunk_id = network_packet_read_int(np);
-	//                std::cout << "chunk_id: " << chunk_id << std::endl;
 	int chunks_total = network_packet_read_int(np);
-	//                std::cout << "chunks_total: " << chunks_total << std::endl;
 	int sent_ct = network_packet_read_int(np);
-	//                std::cout << "data_len: " << data_len << std::endl;
-	//                std::cout << "data: " << data << std::endl;
 	network_packet_destroy(np);
 
 	struct packetset* ps = nullptr;
 
 	map<string, struct packetset>::iterator ip = c->incoming_packetsets.find(string(hash_id));
+
+	bool chunk_received = true;
 
 	if (ip != c->incoming_packetsets.end()) {
 		ps = &ip->second;
@@ -256,11 +326,14 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			ps->chunks_length[chunk_id] = data_len;
 		}
 		ps->chunks_received_ct[chunk_id]++;
+		ps->transmission_last_receipt = time(nullptr);
 	} else {
 		struct packetset ps_ = packetset_create(chunks_total);
 		ps_.chunks[chunk_id] = (unsigned char*)data;
 		ps_.chunks_length[chunk_id] = data_len;
 		ps_.chunks_received_ct[chunk_id] = 1;
+		ps_.transmission_start = time(nullptr);
+		ps_.transmission_last_receipt = time(nullptr);
 		c->incoming_packetsets.insert(pair<string, struct packetset>(string(hash_id), ps_));
 		if (chunks_total == 1) {
 			ip = c->incoming_packetsets.find(string(hash_id));
@@ -286,6 +359,8 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			unsigned int complete_len = 0;
 			unsigned char* complete_msg = packageset_message_get(ps, &complete_len);
 
+			contact_stats_update(c->cs, CSE_TIME_PER_256_CHUNK_IN, (ps->transmission_last_receipt - ps->transmission_start) * 256.0f/complete_len);
+
 			struct NetworkPacket* npc = new NetworkPacket();
 			network_packet_create_from_data(npc, (char*)complete_msg, complete_len);
 
@@ -293,27 +368,21 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			if (mt == MT_ESTABLISH_CONTACT) {
 				int name_len = 0;
 				char* name = network_packet_read_str(npc, &name_len);
-				std::cout << "complete msg" << std::endl;
-				std::cout << "len: " << complete_len << std::endl;
-
-				std::cout << name << std::endl;
 
 				int pubkey_len = 0;
 				char* pubkey = network_packet_read_str(npc, &pubkey_len);
 
-				std::cout << pubkey << std::endl;
-
 				int address_rev_len = 0;
 				char* address_rev = network_packet_read_str(npc, &address_rev_len);
 
-				std::cout << address_rev << std::endl;
-
-				c->name = string(name);
-				c->address = string(address_rev);
-				c->pub_key.public_key = pubkey;
-				c->pub_key.public_key_len = pubkey_len;
+				if (c->pub_key.public_key_len == 0) {
+					c->name = string(name);
+					c->address = string(address_rev);
+					c->pub_key.public_key = pubkey;
+					c->pub_key.public_key_len = pubkey_len;
+					contact_pubkey_save(c, i->id);
+				}
 				for (int ch = 0; ch < chunks_total; ch++) {
-					std::cout << "preparing receipt" << ch << "\n";
 					message_send_receipt(i, c, ps, hash_id, ch);
 				}
 			} else if (mt == MT_ESTABLISH_SESSION) {
@@ -324,10 +393,24 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					message_send_session_key(i, c);
 					memcpy(c->session_key.public_key, pubkey, pubkey_len);
 					crypto_key_sym_finalise(&c->session_key);
+					c->session_established = time(nullptr);
+					contact_sessionkey_save(c, i->id);
 				} else if (c->session_key.public_key_len > 0){
 					memcpy(c->session_key.public_key, pubkey, pubkey_len);
 					crypto_key_sym_finalise(&c->session_key);
+					c->session_established = time(nullptr);
+					contact_sessionkey_save(c, i->id);
 				}
+				if (chunks_total == 1) {
+					message_send_receipt(i, c, ps, hash_id, chunk_id);
+				}
+			} else if (mt == MT_DROP_SESSION) {
+				c->session_key.private_key_len = 0;
+				if (c->session_key.private_key != nullptr) {
+					free(c->session_key.private_key);
+					c->session_key.private_key = nullptr;
+				}
+				std::cout << "dropping session\n";
 				if (chunks_total == 1) {
 					message_send_receipt(i, c, ps, hash_id, chunk_id);
 				}
@@ -341,26 +424,37 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 				}
 			} else if (mt == MT_RECEIPT) {
 				unsigned int receipt_of_chunk = network_packet_read_int(npc);
-				std::cout << "npc: " << npc->data << std::endl;
 				mutex_wait_for(&c->outgoing_messages_lock);
 				//migrate
 				// - packetset map to map<hash_id, struct packetset>
 				//   remove packetsetid
-				std::cout << "received MT_RECEIPT for" << receipt_of_chunk << "\n";
 				for (int pkts = 0; pkts < c->outgoing_messages.size(); pkts++) {
 					bool same = true;
-					std::cout << "comparing :" << c->outgoing_messages[pkts]->msg_hash_id << " to: " << hash_id << "\n";
 					for (int h = 0; h < 16; h++) {
 						if (c->outgoing_messages[pkts]->msg_hash_id[h] != (unsigned char)hash_id[h]) {
 							same = false;
-							std::cout << c->outgoing_messages[pkts]->msg_hash_id[h] << ": " << (int)c->outgoing_messages[pkts]->msg_hash_id[h] << "<>" << (int)(unsigned char)hash_id[h]<<":"<< hash_id[h] << "not same\n";
 							break;
 						}
 					}
 					if (same) {
 						struct packetset *pso = packetset_from_id(c->outgoing_messages[pkts]->packetset_id);
+						if (pso->mm->mt == MT_DROP_SESSION) {
+							c->session_key.private_key_len = 0;
+							if (c->session_key.private_key != nullptr) {
+								free(c->session_key.private_key);
+								c->session_key.private_key = nullptr;
+							}
+							std::cout << "dropping session\n";
+						}
 						pso->chunks_received_ct[receipt_of_chunk]++;
-						std::cout << "received receipt for chunk: " << receipt_of_chunk << " " << hash_id << std::endl;
+						if (pso->transmission_first_receipt == 0) {
+							pso->transmission_first_receipt = time(nullptr);
+						}
+						pso->transmission_last_receipt = time(nullptr);
+
+						contact_stats_update(c->cs, CSE_RECEIPT_RECEIVED);
+						chunk_received = false;
+
 						break;
 					}
 				}
@@ -369,7 +463,12 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 				mutex_release(&c->outgoing_messages_lock);
 			}
+
 			network_packet_destroy(npc);
+		}
+		if (chunk_received) {
+			contact_stats_update(c->cs, CSE_CHUNK_RECEIVED);
+			contact_stats_save(c, i->id);
 		}
 	}
 	return true;

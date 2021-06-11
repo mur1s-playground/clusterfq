@@ -85,8 +85,6 @@ void server_loop(void* param) {
 
         bool packet_was_processed = false;
 
-        std::cout << "received something\n";
-
         for (int s = 0; s < senders->size(); s++) {
             struct address_factory_sender* afs = &(*senders)[s];
             if (afs->afst == AFST_CONTACT) {
@@ -105,7 +103,6 @@ void server_loop(void* param) {
 
         if (packet_was_processed) {
             //sending receipts
-            std::cout << "processed something\n";
             packetset_loop_start_if_needed();
         }
 

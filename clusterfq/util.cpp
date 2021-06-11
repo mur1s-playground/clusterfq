@@ -9,6 +9,8 @@
 #include <Windows.h>
 #else
 #include <unistd.h>
+#include <fstream>
+#include <cstring>
 #endif
 
 char* util_issue_command(const char* cmd) {
@@ -90,6 +92,97 @@ vector<string> util_file_read_lines(const string filepath, bool trim) {
 	return result;
 }
 
+void util_file_read_binary(string filename, unsigned char* bin, size_t* out_length) {
+#ifdef _WIN32
+	HANDLE file_handle = CreateFileA(filename.c_str(),
+		FILE_GENERIC_READ,
+		0,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
+
+	(*out_length) = 0;
+
+	if (file_handle != INVALID_HANDLE_VALUE) {
+		char buffer[1024];
+		memset(buffer, 0, 1024);
+
+		DWORD dwBytesRead;
+
+		unsigned char* bin_tmp = bin;
+
+		while (ReadFile(file_handle, buffer, 1024, &dwBytesRead, NULL)) {
+			if (dwBytesRead != 0) {
+				memcpy(bin_tmp, buffer, dwBytesRead);
+				bin_tmp += dwBytesRead;
+				(*out_length) += dwBytesRead;
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	CloseHandle(file_handle);
+#else
+	char buffer[1024];
+	memset(buffer, 0, 1024);
+
+	unsigned int bytes_read = 0;
+
+	ifstream filehandle(filename.c_str(), ios::out | ios::binary);
+	while (filehandle.read(buffer, 1024)) {
+		memcpy(&bin[bytes_read], buffer, 1024);
+		bytes_read += 1024;
+	}
+	unsigned int overlap = filehandle.gcount();
+	memcpy(&bin[bytes_read], buffer, overlap);
+	bytes_read += overlap;
+	*out_length = bytes_read;
+	filehandle.close();
+#endif
+}
+
+void util_file_write_binary(string filename, unsigned char* bin, size_t length) {
+#ifdef _WIN32
+	HANDLE file_handle = CreateFileA(filename.c_str(),
+		FILE_GENERIC_WRITE,
+		0,
+		NULL,
+		OPEN_ALWAYS,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
+
+	char buffer[1024];
+	memset(buffer, 0, 1024);
+
+	DWORD dwBytesWritten;
+
+	int ct = 0;
+	while (ct < length) {
+		int bytes_to_write = 1024;
+		if (length - ct < 1024) {
+			bytes_to_write = length - ct;
+		}
+		memcpy(buffer, &bin[ct], bytes_to_write);
+		int part_write = 0;
+		while (part_write < bytes_to_write) {
+			WriteFile(file_handle, &buffer[part_write], bytes_to_write - part_write, &dwBytesWritten, NULL);
+			part_write += dwBytesWritten;
+			ct += dwBytesWritten;
+		}
+	}
+	CloseHandle(file_handle);
+#else
+	ofstream filehandle(filename.c_str(), ios::out | ios::binary);
+	filehandle.write((char*)bin, length);
+	filehandle.flush();
+	filehandle.close();
+#endif
+}
+
+
 void util_directory_create(const string path) {
 #ifdef _WIN32
 	_mkdir(path.c_str());
@@ -116,6 +209,19 @@ unsigned int util_path_id_get(const string base_path) {
 		f_id++;
 	}
 	return f_id;
+}
+
+vector<string>	util_split(const std::string& str, const std::string& separator) {
+	vector<string> result;
+	int start = 0;
+	int end = str.find_first_of(separator, start);
+	while (end != std::string::npos) {
+		result.push_back(str.substr(start, end - start));
+		start = end + 1;
+		end = str.find_first_of(separator, start);
+	}
+	result.push_back(str.substr(start));
+	return result;
 }
 
 void util_sleep(const unsigned int milliseconds) {

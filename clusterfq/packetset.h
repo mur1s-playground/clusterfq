@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <time.h>
 
 #include "message.h"
 #include "crypto.h"
@@ -16,6 +17,13 @@ struct packetset {
 
 	unsigned int*			chunks_sent_ct;
 	unsigned int*			chunks_received_ct;
+
+	time_t					transmission_start;
+	time_t					transmission_latest_sent;
+	time_t					transmission_first_receipt;
+	time_t					transmission_last_receipt;
+
+	bool					complete;
 
 	struct message_meta*	mm;
 };

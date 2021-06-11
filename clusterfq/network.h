@@ -56,8 +56,10 @@ extern void network_packet_create(struct NetworkPacket* packet, size_t max_size)
 extern void network_packet_create_from_data(struct NetworkPacket* packet, char* data, int size);
 extern void network_packet_append_str(struct NetworkPacket* packet, const char* str, int size);
 extern void network_packet_append_int(struct NetworkPacket* packet, int num);
+extern void network_packet_append_longlong(struct NetworkPacket* packet, long long num);
 extern char* network_packet_read_str(struct NetworkPacket* packet, int* out_len);
 extern int network_packet_read_int(struct NetworkPacket* packet);
+extern long long network_packet_read_longlong(struct NetworkPacket* packet);
 extern void network_packet_destroy(struct NetworkPacket* packet);
 
 /* TCP */
