@@ -22,7 +22,10 @@ EVP_PKEY* crypto_key_public_get(struct Key* key);
 
 /* KEYGEN */
 
+extern void crypto_key_init(struct Key* key);
+
 extern struct Key* crypto_key_copy(struct Key* key);
+extern void crypto_key_copy(struct Key* key_in, struct Key* key_out);
 extern void crypto_key_name_set(struct Key* key, const char* name, int name_len);
 
 extern void crypto_key_private_generate(struct Key* key, int bits);
@@ -31,6 +34,11 @@ extern void crypto_key_public_extract(struct Key* key);
 extern void crypto_key_sym_generate(struct Key* key);
 extern void crypto_key_sym_finalise(struct Key* key);
 
+/* SIGN/VERIFY */
+
+char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len);
+bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* base64_signature, unsigned int base64_signature_len);
+
 /* ENCRYPTION/DECRYPTION */
 
 extern char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encrypt_size, unsigned int *out_size = nullptr);
@@ -38,6 +46,11 @@ extern char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int t
 
 extern unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt, int to_encrypt_len, int* len);
 extern unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len);
+
+/* ENCODE/DECODE */
+
+char* crypto_base64_encode(unsigned char* to_encode, size_t length);
+unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length);
 
 /* UTIL */
 

@@ -84,8 +84,10 @@ int main(int argc, char **argv) {
                 }
             } else if (strstr(args[0].c_str(), "address_factory_clear") != nullptr) {
                 address_factory_clear();
+            } else if (strstr(args[0].c_str(), "message_send_file") != nullptr) {
+                message_send_file(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str(), strlen(args[3].c_str()));
             } else if (strstr(args[0].c_str(), "message_send") != nullptr) {
-                message_send(stoi(args[1]), stoi(args[2]), (unsigned char *)args[3].c_str(), strlen(args[3].c_str()));
+                message_send(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str(), strlen(args[3].c_str()));
             } else if (strstr(args[0].c_str(), "contact_save") != nullptr) {
                 struct identity* i = identity_get(stoi(args[1]));
                 struct contact* c = contact_get(&i->contacts, stoi(args[2]));
@@ -106,11 +108,11 @@ int main(int argc, char **argv) {
 
     /* TEST ENCRYPTION/DECRYPTION */
     /*
-    struct Key k1, s1, s2;
+    struct Key k1, k2, s1, s2;
     std::cout << "generating key\n";
 
     crypto_key_private_generate(&k1, 2048);
-
+    
     std::cout << k1.private_key << std::endl;
 
     std::cout << "extracting pubkey\n";
@@ -119,17 +121,35 @@ int main(int argc, char **argv) {
 
     std::cout << k1.public_key << std::endl;
 
-    string testmessage = "Hello World!";
+    string testmessage = "Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!Hello World!";
+    std::cout << "testmsg len " << testmessage.length() << std::endl; 
+
+    char* signature = crypto_sign_message(&k1, (char *)testmessage.c_str(), testmessage.length());
+    bool verified = crypto_verify_signature(&k1, (char*)testmessage.c_str(), testmessage.length(), signature, strlen(signature));
+
+    if (verified) {
+        std::cout << "message verified k1\n";
+    }
+
+    crypto_key_private_generate(&k2, 2048);
+    crypto_key_public_extract(&k2);
+
+    bool verified_2 = crypto_verify_signature(&k2, (char*)testmessage.c_str(), testmessage.length(), signature, strlen(signature));
+    
+    if (verified_2) {
+        std::cout << "message verified k2\n";
+    }
 
     std::cout << "encrypting message\n";
 
-    char *encrypted = crypto_key_public_encrypt(&k1, (char *)testmessage.c_str(), testmessage.length());
+    unsigned int out_len_pe = 0;
+    char *encrypted = crypto_key_public_encrypt(&k1, (char *)testmessage.c_str(), testmessage.length(), &out_len_pe);
 
     std::cout << encrypted <<"\n";
 
     std::cout << "decrypting message\n";
 
-    char* decrypted = crypto_key_private_decrypt(&k1, encrypted, 256);
+    char* decrypted = crypto_key_private_decrypt(&k1, encrypted, out_len_pe);
 
     std::cout << decrypted << std::endl;
 

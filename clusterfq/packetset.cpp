@@ -65,14 +65,20 @@ void packetset_loop(void* unused) {
 					if (ps->transmission_start == 0 || 
 						(ps->transmission_start > 0 && time(nullptr) - ps->transmission_latest_sent > 5)) {
 						unsigned int chunks_left = packetset_prepare_send(ps);
-						if (chunks_left > 0) break;
+						if (chunks_left > 0) {
+							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
+							break;
+						}
 						ps->complete = true;
+						std::cout << "sent:" << om << std::endl;
+						std::cout << "transmission complete\n";
 					}
+					if (!ps->complete) break;
 				}
 			}
 		}
 		mutex_release(&c->outgoing_messages_lock);
-		util_sleep(16);
+		util_sleep(200);
 	}
 	packetset_loop_running = false;
 	thread_terminated(&main_thread_pool, packetset_loop_thread_id);
@@ -123,6 +129,9 @@ unsigned int packetset_create(struct message_meta* mm) {
 	ps.chunks_ct = chunks;
 
 	ps.chunks = (unsigned char**)malloc(chunks * sizeof(unsigned char*));
+	for (int ch = 0; ch < chunks; ch++) {
+		ps.chunks[ch] = nullptr;
+	}
 	ps.chunks_length = (unsigned int*)malloc(chunks * sizeof(unsigned int));
 
 	ps.chunks_received_ct = (unsigned int*)malloc(chunks * sizeof(unsigned int));
@@ -137,6 +146,10 @@ unsigned int packetset_create(struct message_meta* mm) {
 	ps.transmission_last_receipt = 0;
 
 	ps.complete = false;
+	ps.processed = false;
+
+	ps.verified = (bool*)malloc(chunks * sizeof(bool));
+	memset(ps.verified, 0, chunks * sizeof(bool));
 
 	packetsets.insert(pair<int, struct packetset>(free_id, ps));
 	
@@ -148,6 +161,9 @@ struct packetset packetset_create(unsigned int chunks_ct) {
 	ps.chunks_ct = chunks_ct;
 	
 	ps.chunks = (unsigned char**)malloc(chunks_ct * sizeof(unsigned char*));
+	for (int ch = 0; ch < chunks_ct; ch++) {
+		ps.chunks[ch] = nullptr;
+	}
 	ps.chunks_length = (unsigned int*)malloc(chunks_ct * sizeof(unsigned int));
 
 	ps.chunks_received_ct = (unsigned int*)malloc(chunks_ct * sizeof(unsigned int));
@@ -161,7 +177,11 @@ struct packetset packetset_create(unsigned int chunks_ct) {
 	ps.transmission_first_receipt = 0;
 	ps.transmission_last_receipt = 0;
 
+	ps.verified = (bool*)malloc(chunks_ct * sizeof(bool));
+	memset(ps.verified, 0, chunks_ct * sizeof(bool));
+
 	ps.complete = false;
+	ps.processed = false;
 
 	return ps;
 }
@@ -201,13 +221,15 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 			message_len = ps->mm->np->position - message_start;
 		}
 
-		//-------------------//
-		//TODO: ADD SIGNATURE//
-		//-------------------//
 		struct NetworkPacket np;
-		network_packet_create(&np, ps->chunk_size + 72);
+		network_packet_create(&np, ps->chunk_size + 72 + 350);
 		network_packet_append_str(&np, &ps->mm->np->data[message_start], message_len);
 		network_packet_append_str(&np, (char *)ps->mm->msg_hash_id, 16);
+
+		char* signature = crypto_sign_message(&i->keys[0], &ps->mm->np->data[message_start], message_len);
+		network_packet_append_str(&np, signature, strlen(signature));
+		free(signature);
+
 		network_packet_append_int(&np, c);
 		network_packet_append_int(&np, ps->chunks_ct);
 		network_packet_append_int(&np, ps->chunks_sent_ct[c] + 1);
@@ -215,8 +237,17 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION || ps->mm->mt == MT_DROP_SESSION) {
 			ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
 		} else if (ps->mm->mt == MT_MESSAGE) {
-			ps->chunks[c] = (unsigned char*)crypto_key_sym_encrypt(&con->session_key, (unsigned char *)np.data, np.position, (int *)&ps->chunks_length[c]);
+			if (con->session_key.private_key_len > 0 && con->session_key.public_key_len == 0) {
+				ps->chunks[c] = (unsigned char*)crypto_key_sym_encrypt(&con->session_key, (unsigned char*)np.data, np.position, (int*)&ps->chunks_length[c]);
+			} else {
+				network_packet_destroy(&np);
+				std::cout << "no key\n";
+				break;
+				//ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
+			}
 		}
+		network_packet_destroy(&np);
+
 		client_send_to(con->address, ps->chunks[c], ps->chunks_length[c]);
 		ps->chunks_sent_ct[c]++;
 		ps->transmission_latest_sent = time(nullptr);

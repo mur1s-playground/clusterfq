@@ -13,6 +13,8 @@
 #include <openssl/bn.h>
 #include <openssl/rsa.h>
 
+#include <math.h>
+
 #ifdef _WIN32
 #include <openssl/rand.h>
 #else
@@ -55,6 +57,15 @@ EVP_PKEY* crypto_key_public_get(struct Key* key) {
 
 /* KEYGEN */
 
+extern void crypto_key_init(struct Key* key) {
+	key->name = nullptr;
+	key->name_len = 0;
+	key->private_key = nullptr;
+	key->private_key_len = 0;
+	key->public_key = nullptr;
+	key->public_key_len = 0;
+}
+
 struct Key* crypto_key_copy(struct Key* key) {
 	struct Key* ret;
 	ret = (struct Key*)malloc(sizeof(struct Key));
@@ -72,6 +83,39 @@ struct Key* crypto_key_copy(struct Key* key) {
 	/*	strncpy(ret->public_key, key->public_key, key->public_key_len);*/
 	ret->public_key_len = key->public_key_len;
 	return ret;
+}
+
+void crypto_key_copy(struct Key* key_in, struct Key* key_out) {
+	if (key_out->name != nullptr) {
+		free(key_out->name);
+		key_out->name = nullptr;
+	}
+	if (key_in->name_len > 0) {	
+		key_out->name = (char*)malloc(key_in->name_len + 1);
+		memcpy((void*)key_in->name, (void*)key_in->name, key_in->name_len);
+		key_out->name[key_in->name_len] = '\0';
+	}
+	key_out->name_len = key_in->name_len;
+
+	if (key_out->private_key != nullptr) {
+		free(key_out->private_key);
+		key_out->private_key = nullptr;
+	}
+	if (key_in->private_key_len > 0) {
+		key_out->private_key = (char*)malloc(key_in->private_key_len + 1);
+		memcpy((void*)key_out->private_key, key_in->private_key, key_in->private_key_len);
+	}
+	key_out->private_key_len = key_in->private_key_len;
+
+	if (key_out->public_key != nullptr) {
+		free(key_out->public_key);
+		key_out->public_key = nullptr;
+	}
+	if (key_in->public_key_len > 0) {
+		key_out->public_key = (char*)malloc(key_in->public_key_len + 1);
+		memcpy((void*)key_out->public_key, key_in->public_key, key_in->public_key_len);
+	}
+	key_out->public_key_len = key_in->public_key_len;
 }
 
 void crypto_key_name_set(struct Key* key, const char* name, int name_len) {
@@ -96,6 +140,9 @@ void crypto_key_private_generate(struct Key* key, int bits) {
 	}
 	EVP_PKEY_assign_RSA(pkey, rsa);
 	key->private_key = crypto_key_private_get_buffer(pkey, &(key->private_key_len));
+	BN_free(e);
+	EVP_PKEY_free(pkey);
+	RSA_free(rsa);
 }
 
 void crypto_key_public_extract(struct Key* key) {
@@ -115,6 +162,7 @@ void crypto_key_public_extract(struct Key* key) {
 	key->public_key = (char*)malloc(size + 1);
 	memcpy(key->public_key, p, size);
 	key->public_key[size] = '\0';
+	EVP_PKEY_free(pkey);
 	BIO_free(bp);
 }
 
@@ -138,6 +186,78 @@ void crypto_key_sym_finalise(struct Key* key) {
 	key->private_key_len = ECC_PUB_KEY_SIZE;
 }
 
+/* SIGN/VERIFY */
+
+char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len) {
+	RSA* rsa = NULL;
+	BIO* keybio = BIO_new(BIO_s_mem());
+	EVP_PKEY* pkey = crypto_key_private_get(key->private_key, key->private_key_len);
+	PEM_write_bio_PrivateKey(keybio, pkey, NULL, NULL, 0, 0, NULL);
+	if (!keybio) {
+		fprintf(stderr, "ERROR: Unable to create key BIO\n");
+		return nullptr;
+	}
+	rsa = PEM_read_bio_RSAPrivateKey(keybio, NULL, NULL, NULL);
+	if (!rsa) {
+		fprintf(stderr, "ERROR: Unable tocreate RSA\n");
+		return nullptr;
+	}
+	BIO_free(keybio);
+
+	unsigned char* m = crypto_hash_sha256((unsigned char *)to_sign, to_sign_len);
+	unsigned int m_len = SHA256_DIGEST_LENGTH;
+
+	unsigned char* sigret = (unsigned char*) malloc(RSA_size(rsa));
+	unsigned int sigret_len = 0;
+
+	int ret = RSA_sign(NID_sha256, m, m_len, sigret, &sigret_len, rsa);
+	free(m);
+	EVP_PKEY_free(pkey);
+	free(rsa);
+	if (ret != 1) {
+		fprintf(stderr, "ERROR: Unable to sign message\n");
+		free(sigret);
+		return nullptr;
+	}
+	char* base64_text = crypto_base64_encode(sigret, sigret_len);
+	free(sigret);
+	return base64_text;
+}
+
+bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* base64_signature, unsigned int base64_signature_len) {
+	RSA* rsa = NULL;
+	BIO* keybio = BIO_new(BIO_s_mem());
+	EVP_PKEY* pkey = crypto_key_public_get(key);
+	PEM_write_bio_PUBKEY(keybio, pkey);
+	if (!keybio) {
+		fprintf(stderr, "ERROR: failed to create key BIO\n");
+		return NULL;
+	}
+	rsa = PEM_read_bio_RSA_PUBKEY(keybio, NULL, NULL, NULL);
+	if (!rsa) {
+		fprintf(stderr, "ERROR: failed to create RSA\n");
+		return NULL;
+	}
+	BIO_free(keybio);
+
+	unsigned char* m = crypto_hash_sha256((unsigned char*)to_verify, to_verify_len);
+	unsigned int m_len = SHA256_DIGEST_LENGTH;
+
+	size_t signature_len = 0;
+	unsigned char* signature = crypto_base64_decode(base64_signature, &signature_len);
+
+	int ret = RSA_verify(NID_sha256, m, m_len, signature, signature_len, rsa);
+	EVP_PKEY_free(pkey);
+	RSA_free(rsa);
+	free(m);
+	free(signature);
+
+	if (ret != 1) {
+		fprintf(stderr, "ERROR: failed to verify signature for message\n");
+		return false;
+	}
+	return true;
+}
 
 /* ENCRYPTION/DECRYPTION */
 
@@ -165,21 +285,33 @@ char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encryp
 	}
 	if (verification_key) EVP_PKEY_free(verification_key);
 	int size = RSA_size(rsa);
-	if (out_size != nullptr) *out_size = (unsigned int)size;
-	//fprintf(stdout, "rsa_size %i\n", size);
-	if (to_encrypt_size >= size - 41) { /* Padding: rsa size of 512 and message size >= 471 fails */
-		fprintf(stderr, "ERROR: to_encrypt too long: %i >= %i-41\n", to_encrypt_size, size);
-		return NULL;
+	
+	int part = size - 50;
+
+	int parts = ceilf(to_encrypt_size / (float)(part));
+	if (out_size != nullptr) *out_size = (unsigned int)parts * size;
+
+	unsigned char* encrypted = (unsigned char*)malloc((parts * size) + 1);
+	memset(encrypted, 0, ((parts * size) + 1) * sizeof(unsigned char));
+
+	int cur_pos = 0;
+	for (int e = 0; e < parts; e++) {
+		int len = part;
+		if (cur_pos + len > to_encrypt_size) {
+			len = to_encrypt_size - cur_pos;
+		}
+		int ret = RSA_public_encrypt(len, (unsigned char*)&to_encrypt[e * (part)], &encrypted[e * size], rsa, RSA_PKCS1_OAEP_PADDING);
+		if (ret == -1) {
+			fprintf(stderr, "ERROR: Unable to encrypt\n");
+			EVP_PKEY_free(pkey);
+			RSA_free(rsa);
+			return NULL;
+		}
+		cur_pos += len;
 	}
-	unsigned char* encrypted;
-	encrypted = (unsigned char*)malloc((size + 1) * sizeof(unsigned char));
-	memset(encrypted, 0, (size + 1) * sizeof(unsigned char));
-	int ret = RSA_public_encrypt(to_encrypt_size, (unsigned char*)to_encrypt, encrypted, rsa, RSA_PKCS1_OAEP_PADDING);
-	if (ret == -1) {
-		fprintf(stderr, "ERROR: Unable to encrypt\n");
-		return NULL;
-	}
-	encrypted[size] = '\0';
+	encrypted[parts * size] = '\0';
+	EVP_PKEY_free(pkey);
+	RSA_free(rsa);
 	return (char *)encrypted;
 }
 
@@ -203,20 +335,35 @@ char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decry
 	int rc = EVP_PKEY_assign_RSA(verification_key, RSAPrivateKey_dup(rsa));
 	if (rc != 1) {
 		fprintf(stderr, "ERROR: rc != 1\n");
+		RSA_free(rsa);
+		EVP_PKEY_free(pkey);
 		return nullptr;
 	}
 	if (verification_key) EVP_PKEY_free(verification_key);
 	unsigned char* decrypted = (unsigned char*)malloc((to_decrypt_size + 1) * sizeof(unsigned char));
 	memset(decrypted, 0, (to_decrypt_size + 1) * sizeof(unsigned char));
-	int ret = RSA_private_decrypt(to_decrypt_size, (unsigned char*)to_decrypt, decrypted, rsa, RSA_PKCS1_OAEP_PADDING);
-	if (ret == -1) {
-		fprintf(stderr, "ERROR: decrypting\n");
-		free(decrypted);
-		return nullptr;
+
+	int size = RSA_size(rsa);
+
+	int part = size - 50;
+	int parts = ceilf(to_decrypt_size / (float)size);
+
+	int len_total = 0;
+	for (int e = 0; e < parts; e++) {
+		int ret = RSA_private_decrypt(size, (unsigned char*)&to_decrypt[e * size], &decrypted[e * (part)], rsa, RSA_PKCS1_OAEP_PADDING);
+		if (ret == -1) {
+			fprintf(stderr, "ERROR: Unable to decrypt\n");
+			RSA_free(rsa);
+			EVP_PKEY_free(pkey);
+			return NULL;
+		}
+		len_total += ret;
 	}
-	decrypted = (unsigned char*)realloc(decrypted, (ret + 1) * sizeof(unsigned char));
-	decrypted[ret] = '\0';
-	if (out_len != nullptr) *out_len = ret;
+	decrypted = (unsigned char*)realloc(decrypted, (len_total + 1) * sizeof(unsigned char));
+	decrypted[len_total] = '\0';
+	if (out_len != nullptr) *out_len = len_total;
+	RSA_free(rsa);
+	EVP_PKEY_free(pkey);
 	return (char*)decrypted;
 }
 
@@ -229,19 +376,31 @@ unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt
 	EVP_CIPHER_CTX* ctx;
 	if (!(ctx = EVP_CIPHER_CTX_new())) {
 		printf("error creating cipher context\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(encrypted);
 		return NULL;
 	}
 	if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, hashed_key, hashed_iv)) {
 		printf("error init enc\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(encrypted);
 		return NULL;
 	}
 	if (1 != EVP_EncryptUpdate(ctx, encrypted, &encrypted_len, to_encrypt, to_encrypt_len)) {
 		printf("error encrypting data\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(encrypted);
 		return NULL;
 	}
 	*len = encrypted_len;
 	if (1 != EVP_EncryptFinal_ex(ctx, encrypted + encrypted_len, &encrypted_len)) {
 		printf("error finalizing\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(encrypted);
 		return NULL;
 	}
 	*len = *len + encrypted_len;
@@ -260,27 +419,91 @@ unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt
 	int decrypted_len;
 	if (!(ctx = EVP_CIPHER_CTX_new())) {
 		printf("error creating cipher context\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(decrypted);
 		return nullptr;
 	}
 	if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, hashed_key, hashed_iv)) {
 		printf("error init dec\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(decrypted);
 		return nullptr;
 	}
 	if (1 != EVP_DecryptUpdate(ctx, decrypted, &decrypted_len, to_decrypt, to_decrypt_len)) {
 		printf("error decrypting\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(decrypted);
 		return nullptr;
 	}
 	*len = decrypted_len;
 	if (1 != EVP_DecryptFinal_ex(ctx, decrypted + decrypted_len, &decrypted_len)) {
 		printf("error finalizing dec\n");
+		free(hashed_key);
+		free(hashed_iv);
+		free(decrypted);
 		return nullptr;
 	}
 	*len = *len + decrypted_len;
 	decrypted[(*len)] = '\0';
+	free(hashed_key);
+	free(hashed_iv);
 	EVP_CIPHER_CTX_free(ctx);
 	return decrypted;
 }
 
+/* ENCODE/DECODE */
+
+char* crypto_base64_encode(unsigned char* to_encode, size_t length) {
+	char* encoded;
+
+	BIO* bio, * b64;
+	BUF_MEM* bufferPtr;
+
+	b64 = BIO_new(BIO_f_base64());
+	bio = BIO_new(BIO_s_mem());
+	bio = BIO_push(b64, bio);
+
+	BIO_write(bio, to_encode, length);
+	BIO_flush(bio);
+	BIO_get_mem_ptr(bio, &bufferPtr);
+	BIO_set_close(bio, BIO_NOCLOSE);
+	BIO_free_all(bio);
+
+	encoded = (*bufferPtr).data;
+	return encoded;
+}
+
+size_t crypto_calc_decode_length(const char* to_decode) {
+	size_t len = strlen(to_decode), padding = 0;
+
+	if (to_decode[len - 1] == '=') {
+		padding++;
+	}
+	if (to_decode[len - 2] == '=') {
+		padding++;
+	}
+
+	return (len * 3) / 4 - padding;
+}
+
+unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length) {
+	BIO* bio, * b64;
+
+	int decode_len = crypto_calc_decode_length(to_decode);
+	unsigned char* buffer = (unsigned char*)malloc(decode_len + 1);
+	buffer[decode_len] = '\0';
+
+	bio = BIO_new_mem_buf(to_decode, -1);
+	b64 = BIO_new(BIO_f_base64());
+	bio = BIO_push(b64, bio);
+
+	*out_length = BIO_read(bio, buffer, strlen(to_decode));
+	BIO_free_all(bio);
+	return buffer;
+}
 
 
 /* UTILS */

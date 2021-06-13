@@ -24,6 +24,9 @@ struct packetset {
 	time_t					transmission_last_receipt;
 
 	bool					complete;
+	bool					processed;
+
+	bool*					verified;
 
 	struct message_meta*	mm;
 };

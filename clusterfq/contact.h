@@ -28,6 +28,9 @@ struct contact {
 	struct Key						session_key;
 	time_t							session_established;
 
+	struct Key						session_key_inc;
+	struct mutex					session_key_inc_lock;
+
 	vector<struct message_meta *>	outgoing_messages;
 	struct mutex					outgoing_messages_lock;
 
@@ -48,6 +51,14 @@ void contact_save(struct contact* c, string path);
 void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, string path);
 
 /* LOAD/SAVE SUB */
+void contact_address_save(struct contact* c, unsigned int identity_id);
+void contact_address_save(struct contact* c, string path);
+void contact_address_load(struct contact* c, string path);
+
+void contact_address_rev_save(struct contact* c, unsigned int identity_id);
+void contact_address_rev_save(struct contact* c, string path);
+void contact_address_rev_load(struct contact* c, string path, unsigned int identity_id);
+
 void contact_pubkey_save(struct contact* c, unsigned int identity_id);
 void contact_pubkey_save(struct contact* c, string path);
 void contact_pubkey_load(struct contact* c, string path);
