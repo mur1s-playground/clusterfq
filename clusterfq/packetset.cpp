@@ -8,6 +8,7 @@
 #include "util.h"
 #include "thread.h"
 #include "clusterfq.h"
+#include "address_factory.h"
 
 #ifdef _WIN32
 #else
@@ -69,9 +70,36 @@ void packetset_loop(void* unused) {
 							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
 							break;
 						}
+
 						ps->complete = true;
 						std::cout << "sent:" << om << std::endl;
 						std::cout << "transmission complete\n";
+
+						if (ps->mm->mt == MT_ESTABLISH_CONTACT) {
+							struct identity* i = identity_get(mm->identity_id);
+							struct contact* c = contact_get(&i->contacts, mm->contact_id);
+
+							contact_address_rev_save(c, i->id);
+						} else if (ps->mm->mt == MT_MIGRATE_ADDRESS) {
+							struct identity* i = identity_get(mm->identity_id);
+							struct contact* c = contact_get(&i->contacts, mm->contact_id);
+
+							std::cout << "migrated address_rev from: " << c->address_rev << " to: " << c->address_rev_migration << std::endl;
+
+							address_factory_remove_address(c->address_rev, AFST_CONTACT, mm->identity_id, mm->contact_id);
+							c->address_rev = c->address_rev_migration;
+							c->address_rev_established = time(nullptr);
+
+							c->address_rev_migration = "";
+
+							contact_address_rev_save(c, i->id);
+						} else if (ps->mm->mt == MT_MIGRATE_PUBKEY) {
+							struct identity* i = identity_get(mm->identity_id);
+
+							c->identity_key_id = i->keys.size() - 1;
+							std::cout << "migrated pubkey for contact: " << c->name << std::endl;
+							contact_identity_key_id_save(c, i->id);
+						}
 					}
 					if (!ps->complete) break;
 				}
@@ -118,9 +146,8 @@ unsigned int packetset_create(struct message_meta* mm) {
 
 	if (ps.mm->mt == MT_ESTABLISH_CONTACT || ps.mm->mt == MT_ESTABLISH_SESSION || ps.mm->mt == MT_DROP_SESSION) {
 		chunk_size = 128;
-	} else if (ps.mm->mt == MT_MESSAGE) {
+	} else if (ps.mm->mt == MT_MESSAGE || ps.mm->mt == MT_MIGRATE_ADDRESS || ps.mm->mt == MT_MIGRATE_PUBKEY) {
 		chunk_size = 1024;
-
 	}
 
 	int chunks = (int)ceilf(ps.mm->np->position / (float)chunk_size);
@@ -223,19 +250,19 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		}
 
 		struct NetworkPacket np;
-		network_packet_create(&np, ps->chunk_size + 72 + 350);
+		network_packet_create(&np, ps->chunk_size + 72 + 1000);
 		network_packet_append_str(&np, &ps->mm->np->data[message_start], message_len);
 		network_packet_append_str(&np, (char *)ps->mm->msg_hash_id, 16);
 		network_packet_append_int(&np, c);
 		network_packet_append_int(&np, ps->chunks_ct);
 		network_packet_append_int(&np, ps->chunks_sent_ct[c] + 1);
-		char* signature = crypto_sign_message(&i->keys[0], np.data, np.position);
+		char* signature = crypto_sign_message(&i->keys[con->identity_key_id], np.data, np.position);
 		network_packet_append_str(&np, signature, strlen(signature));
 		free(signature);
 
 		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION || ps->mm->mt == MT_DROP_SESSION) {
 			ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
-		} else if (ps->mm->mt == MT_MESSAGE) {
+		} else if (ps->mm->mt == MT_MESSAGE || ps->mm->mt == MT_MIGRATE_ADDRESS || ps->mm->mt == MT_MIGRATE_PUBKEY) {
 			if (con->session_key.private_key_len > 0 && con->session_key.public_key_len == 0) {
 				ps->chunks[c] = (unsigned char*)crypto_key_sym_encrypt(&con->session_key, (unsigned char*)np.data, np.position, (int*)&ps->chunks_length[c]);
 			} else {

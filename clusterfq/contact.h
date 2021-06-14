@@ -20,10 +20,14 @@ struct contact {
 
 	string							name;
 
+	unsigned int					identity_key_id;
+
 	struct Key						pub_key;
 	string							address;
 
 	string							address_rev;
+	string							address_rev_migration;
+	time_t							address_rev_established;
 
 	struct Key						session_key;
 	time_t							session_established;
@@ -51,6 +55,10 @@ void contact_save(struct contact* c, string path);
 void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, string path);
 
 /* LOAD/SAVE SUB */
+void contact_identity_key_id_save(struct contact* c, unsigned int identity_id);
+void contact_identity_key_id_save(struct contact* c, string path);
+void contact_identity_key_id_load(struct contact* c, string path);
+
 void contact_address_save(struct contact* c, unsigned int identity_id);
 void contact_address_save(struct contact* c, string path);
 void contact_address_load(struct contact* c, string path);

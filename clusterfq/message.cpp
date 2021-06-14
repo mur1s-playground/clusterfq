@@ -38,7 +38,7 @@ void message_send_receipt(struct identity* i, struct contact* c, struct packetse
 	network_packet_append_int(np, chunk_id);
 
 	struct NetworkPacket* outer = new NetworkPacket();
-	network_packet_create(outer, 128 + 72 + 350);
+	network_packet_create(outer, 128 + 72 + 1000);
 	network_packet_append_str(outer, np->data, np->position);
 	network_packet_append_str(outer, hash_id, 16);
 	network_packet_append_int(outer, 0); //chunk 0
@@ -46,7 +46,7 @@ void message_send_receipt(struct identity* i, struct contact* c, struct packetse
 	ps->chunks_sent_ct[chunk_id]++;
 	network_packet_append_int(outer, ps->chunks_sent_ct[chunk_id]);
 
-	char* signature = crypto_sign_message(&i->keys[0], outer->data, outer->position);
+	char* signature = crypto_sign_message(&i->keys[c->identity_key_id], outer->data, outer->position);
 	network_packet_append_str(outer, signature, strlen(signature));
 	free(signature);
 
@@ -85,6 +85,7 @@ void message_send_session_key(struct identity* i, struct contact* c, bool prepen
 	mutex_wait_for(&c->outgoing_messages_lock);
 	mutex_wait_for(&c->session_key_inc_lock);
 	crypto_key_sym_generate(&c->session_key);
+	crypto_key_name_set(&c->session_key, c->name.c_str(), c->name.length());
 	crypto_key_copy(&c->session_key, &c->session_key_inc);
 	mutex_release(&c->session_key_inc_lock);
 	mutex_release(&c->outgoing_messages_lock);
@@ -106,6 +107,62 @@ void message_send_session_key(struct identity* i, struct contact* c, bool prepen
 	contact_add_message(c, mm, prepend);
 }
 
+void message_send_new_address(struct identity* i, struct contact* c) {
+	struct message_meta* mm = new struct message_meta();
+	mm->mt = MT_MIGRATE_ADDRESS;
+	mm->identity_id = i->id;
+	mm->contact_id = c->id;
+	mm->packetset_id = UINT_MAX;
+
+	//GENERATE RETURN ADDRESS
+	c->address_rev_migration = address_factory_get_unique();
+	address_factory_add_address(c->address_rev_migration, AFST_CONTACT, i->id, c->id);
+
+	//PACKET
+							//type		//pubkey							//hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
+	unsigned int size_est = 1 + c->address_rev_migration.length() + 17 + 6 + 10 + 40;
+
+	struct NetworkPacket* np = new NetworkPacket();
+	network_packet_create(np, size_est);
+	network_packet_append_int(np, MT_MIGRATE_ADDRESS);
+	network_packet_append_str(np, c->address_rev_migration.c_str(), c->address_rev_migration.length());
+
+	mm->np = np;
+
+	//MSG HASH-ID
+	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+	contact_add_message(c, mm);
+}
+
+void message_send_migrate_key(struct identity* i, struct contact* c) {
+	message_check_session_key(i, c);
+
+	struct message_meta* mm = new struct message_meta();
+	mm->mt = MT_MIGRATE_PUBKEY;
+	mm->identity_id = i->id;
+	mm->contact_id = c->id;
+	mm->packetset_id = UINT_MAX;
+
+	//PACKET
+							//type		//pubkey							//hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
+	unsigned int size_est = 1 + i->keys[i->keys.size() - 1].public_key_len + 17 + 6 + 10 + 40;
+
+	struct NetworkPacket* np = new NetworkPacket();
+	network_packet_create(np, size_est);
+	network_packet_append_int(np, MT_MIGRATE_PUBKEY);
+	network_packet_append_str(np, i->keys[i->keys.size() - 1].public_key, i->keys[i->keys.size() - 1].public_key_len);
+
+	mm->np = np;
+
+	//MSG HASH-ID
+	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+	contact_add_message(c, mm);
+
+	packetset_loop_start_if_needed();
+}
+
 void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len) {
 	unsigned char* file = (unsigned char*)malloc(1024 * 1024 * 10);
 		
@@ -123,6 +180,54 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, unsign
 
 	message_send(identity_id, contact_id, file, out_len);
 	free(file);
+}
+
+void message_check_session_key(struct identity *i, struct contact *c) {
+	if (c->session_key.private_key_len > 0 && time(nullptr) - c->session_established > 60) {
+
+		mutex_wait_for(&c->session_key_inc_lock);
+		c->session_key_inc.private_key_len = 0;
+		if (c->session_key_inc.private_key != nullptr) {
+			free(c->session_key_inc.private_key);
+			c->session_key_inc.private_key = nullptr;
+		}
+		mutex_release(&c->session_key_inc_lock);
+
+		mutex_wait_for(&c->outgoing_messages_lock);
+		c->session_key.private_key_len = 0;
+		if (c->session_key.private_key != nullptr) {
+			free(c->session_key.private_key);
+			c->session_key.private_key = nullptr;
+		}
+		mutex_release(&c->outgoing_messages_lock);
+
+		//DROP SESSION
+		struct message_meta* mm = new struct message_meta();
+		mm->mt = MT_DROP_SESSION;
+		mm->identity_id = i->id;
+		mm->contact_id = c->id;
+		mm->packetset_id = UINT_MAX;
+
+		//PACKET
+								//type	 //hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
+		unsigned int size_est = 1 + 17 + 6 + 10 + 40;
+
+		struct NetworkPacket* np = new NetworkPacket();
+		network_packet_create(np, size_est);
+		network_packet_append_int(np, MT_DROP_SESSION);
+
+		mm->np = np;
+
+		//MSG HASH-ID
+		mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+		contact_add_message(c, mm);
+	}
+
+	if (c->session_key.private_key_len == 0) {
+		//ESTABLISH SESSION KEY
+		message_send_session_key(i, c);
+	}
 }
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char *message, unsigned int msg_len) {
@@ -150,6 +255,7 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 		//GENERATE RETURN ADDRESS
 		c->address_rev = address_factory_get_unique();
 		address_factory_add_address(c->address_rev, AFST_CONTACT, identity_id, contact_id);
+		c->address_rev_established = time(nullptr);
 
 		//PACKET
 								//type	  //name						//pubkey					//address							//hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
@@ -169,50 +275,11 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 
 		contact_add_message(c, mm);
 	}
-	if (c->session_key.private_key_len > 0 && time(nullptr) - c->session_established > 60) {
 
-		mutex_wait_for(&c->session_key_inc_lock);
-		c->session_key_inc.private_key_len = 0;
-		if (c->session_key_inc.private_key != nullptr) {
-			free(c->session_key_inc.private_key);
-			c->session_key_inc.private_key = nullptr;
-		}
-		mutex_release(&c->session_key_inc_lock);
+	message_check_session_key(i, c);
 
-		mutex_wait_for(&c->outgoing_messages_lock);
-		c->session_key.private_key_len = 0;
-		if (c->session_key.private_key != nullptr) {
-			free(c->session_key.private_key);
-			c->session_key.private_key = nullptr;
-		}
-		mutex_release(&c->outgoing_messages_lock);
-
-		//DROP SESSION
-		struct message_meta* mm = new struct message_meta();
-		mm->mt = MT_DROP_SESSION;
-		mm->identity_id = identity_id;
-		mm->contact_id = contact_id;
-		mm->packetset_id = UINT_MAX;
-
-		//PACKET
-								//type	 //hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
-		unsigned int size_est = 1		+ 17 + 6 + 10 + 40;
-
-		struct NetworkPacket* np = new NetworkPacket();
-		network_packet_create(np, size_est);
-		network_packet_append_int(np, MT_DROP_SESSION);
-
-		mm->np = np;
-
-		//MSG HASH-ID
-		mm->msg_hash_id = message_create_hash_id(np->data, np->size);
-
-		contact_add_message(c, mm);
-	}
-
-	if (c->session_key.private_key_len == 0) {
-		//ESTABLISH SESSION KEY
-		message_send_session_key(i, c);
+	if (time(nullptr) - c->address_rev_established > 120) {
+		message_send_new_address(i, c);
 	}
 
 	struct message_meta *mm = new struct message_meta();

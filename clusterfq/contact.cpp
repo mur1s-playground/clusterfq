@@ -36,6 +36,8 @@ struct contact *contact_static_get_pending() {
 void contact_create_open(struct contact* c, string name_placeholder, string address_rev) {
 	c->name = name_placeholder;
 
+	c->identity_key_id = 0;
+
 	crypto_key_init(&c->pub_key);
 	crypto_key_init(&c->session_key);
 	crypto_key_init(&c->session_key_inc);
@@ -45,6 +47,7 @@ void contact_create_open(struct contact* c, string name_placeholder, string addr
 	
 	c->address = "";
 	c->address_rev = address_rev;
+	c->address_rev_established = time(nullptr);
 
 	c->cs = new struct contact_stats();
 	contact_stats_init(c->cs);
@@ -54,6 +57,8 @@ void contact_create_open(struct contact* c, string name_placeholder, string addr
 
 void contact_create(struct contact* c, string name, string pubkey, string address) {
 	c->name = name;
+
+	c->identity_key_id = 0;
 
 	crypto_key_init(&c->pub_key);
 	crypto_key_init(&c->session_key);
@@ -69,6 +74,7 @@ void contact_create(struct contact* c, string name, string pubkey, string addres
 	
 	c->address = address;
 	c->address_rev = "";
+	c->address_rev_established = 0;
 
 	c->session_established = 0;
 
@@ -92,6 +98,8 @@ void contact_save(struct contact* c, string path) {
 	name_path << path << "name";
 
 	util_file_write_line(name_path.str(), c->name);
+
+	contact_identity_key_id_save(c, path);
 
 	if (c->pub_key.public_key_len > 0) {
 		contact_pubkey_save(c, path);
@@ -117,6 +125,8 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 	name_path << path << "name";
 	c->name = util_file_read_lines(name_path.str(), true)[0];
 	
+	contact_identity_key_id_load(c, path);
+
 	crypto_key_init(&c->pub_key);
 	contact_pubkey_load(c, path);
 
@@ -135,6 +145,34 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 	contact_stats_load(c, path);
 
 	mutex_init(&c->outgoing_messages_lock);
+}
+
+void contact_identity_key_id_save(struct contact* c, unsigned int identity_id) {
+	stringstream path;
+	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+	contact_identity_key_id_save(c, path.str());
+}
+
+void contact_identity_key_id_save(struct contact* c, string path) {
+	stringstream i_path;
+	i_path << path << "identity_key_id";
+
+	stringstream id;
+	id << c->identity_key_id;
+	
+	util_file_write_line(i_path.str(), id.str());
+}
+
+void contact_identity_key_id_load(struct contact* c, string path) {
+	stringstream i_path;
+	i_path << path << "identity_key_id";
+
+	vector<string> i_key = util_file_read_lines(i_path.str(), true);
+	if (i_key.size() > 0) {
+		c->identity_key_id = stoi(i_key[0]);
+	} else {
+		c->identity_key_id = 0;
+	}
 }
 
 void contact_address_save(struct contact* c, unsigned int identity_id) {
@@ -172,7 +210,14 @@ void contact_address_rev_save(struct contact* c, string path) {
 	if (c->address_rev.length() > 0) {
 		stringstream add_r_path;
 		add_r_path << path << "address_rev";
-		util_file_write_line(add_r_path.str(), c->address_rev);
+		vector<string> lines = vector<string>();
+		lines.push_back(c->address_rev);
+
+		stringstream established;
+		established << c->address_rev_established;
+
+		lines.push_back(established.str());
+		util_file_write_lines(add_r_path.str(), lines);
 	}
 }
 
@@ -183,6 +228,11 @@ void contact_address_rev_load(struct contact* c, string path, unsigned int ident
 	if (address_rev.size() > 0) {
 		c->address_rev = address_rev[0];
 		address_factory_add_address(address_rev[0], AFST_CONTACT, identity_id, c->id);
+		if (address_rev.size() > 1 && address_rev[1].length() > 0) {
+			c->address_rev_established = stoi(address_rev[1]);
+		} else {
+			c->address_rev_established = 0;
+		}
 	} else {
 		c->address_rev = "";
 	}
@@ -291,6 +341,7 @@ void contact_dump(struct contact* c) {
 	std::cout << c->address << std::endl;
 	std::cout << c->address_rev << std::endl;
 	crypto_key_dump(&c->pub_key);
+	std::cout << c->identity_key_id << std::endl;
 	crypto_key_dump(&c->session_key);
 	crypto_key_dump(&c->session_key_inc);
 }
@@ -334,7 +385,18 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 	if (decrypted == nullptr) {
 		//EITHER ESTABLISH CONTACT OR ESTABLISH SESSION KEY
-		decrypted = crypto_key_private_decrypt(&i->keys[0], (char*)packet_buffer_packet, packet_len, &out_len);
+		int ikey_id = c->identity_key_id;
+		for (; ikey_id < i->keys.size(); ikey_id++) {
+			decrypted = crypto_key_private_decrypt(&i->keys[c->identity_key_id], (char*)packet_buffer_packet, packet_len, &out_len);
+			if (decrypted != nullptr) {
+				if (ikey_id > c->identity_key_id) {
+					c->identity_key_id = ikey_id;
+					std::cout << "migrated pubkey for contact: " << c->name << std::endl;
+					contact_identity_key_id_save(c, i->id);
+				}
+				break;
+			}
+		}
 	}
 
 	if (decrypted == nullptr) {
@@ -380,6 +442,11 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			ps->chunks[chunk_id] = (unsigned char*)data;
 			ps->chunks_length[chunk_id] = data_len;
 			ps->verified[chunk_id] = verified;
+		} else {
+			ps->chunks_received_ct[chunk_id]++;
+			ps->transmission_last_receipt = time(nullptr);
+			message_send_receipt(i, c, ps, hash_id, chunk_id);
+			return true;
 		}
 		ps->chunks_received_ct[chunk_id]++;
 		ps->transmission_last_receipt = time(nullptr);
@@ -493,6 +560,34 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					if (chunks_total == 1) {
 						message_send_receipt(i, c, ps, hash_id, chunk_id);
 					}
+				} else if (mt == MT_MIGRATE_ADDRESS) {
+					int address_len = 0;
+					char* address = network_packet_read_str(npc, &address_len);
+
+					mutex_wait_for(&c->outgoing_messages_lock);
+					std::cout << "migrated address from: " << c->address << " to: " << address << std::endl;
+					c->address = string(address);
+					contact_address_save(c, i->id);
+					mutex_release(&c->outgoing_messages_lock);
+
+					if (chunks_total == 1) {
+						message_send_receipt(i, c, ps, hash_id, chunk_id);
+					}
+				} else if (mt == MT_MIGRATE_PUBKEY) {
+					int pubkey_len = 0;
+					char* pubkey = network_packet_read_str(npc, &pubkey_len);
+
+					mutex_wait_for(&c->outgoing_messages_lock);
+					free(c->pub_key.public_key);
+					c->pub_key.public_key_len = pubkey_len;
+					c->pub_key.public_key = (char*)malloc(pubkey_len + 1);
+					memcpy(c->pub_key.public_key, pubkey, pubkey_len);
+					c->pub_key.public_key[pubkey_len] = '\0';
+					mutex_release(&c->outgoing_messages_lock);
+
+					contact_pubkey_save(c, i->id);
+
+					std::cout << "migrated pubkey:\n" << c->pub_key.public_key << std::endl;
 				} else if (mt == MT_DROP_SESSION) {
 
 					mutex_wait_for(&c->session_key_inc_lock);
@@ -552,11 +647,6 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 							}
 							if (same) {
 								struct packetset* pso = packetset_from_id(c->outgoing_messages[pkts]->packetset_id);
-
-								//TODO: this needs to go somewhere else
-								if (pso->mm->mt == MT_ESTABLISH_CONTACT) {
-									contact_address_rev_save(c, i->id);
-								}
 
 								pso->chunks_received_ct[receipt_of_chunk]++;
 								if (pso->transmission_first_receipt == 0) {

@@ -71,17 +71,18 @@ int main(int argc, char **argv) {
                 identity_share(stoi(args[1]), args[2]);
             } else if (strstr(args[0].c_str(), "identity_contact_list") != nullptr) {
                 identity_contact_list(stoi(args[1]));
+            } else if (strstr(args[0].c_str(), "identity_migrate_key") != nullptr) {
+                struct identity* i = identity_get(stoi(args[1]));
+                identity_migrate_key(i, stoi(args[2]));
             } else if (strstr(args[0].c_str(), "address_factory_sender_get") != nullptr) {
-                vector<struct address_factory_sender>* afs = address_factory_sender_get(args[1]);
-                if (afs != nullptr) {
+                vector<struct address_factory_sender> afs = address_factory_sender_get(args[1]);
                     std::cout << std::endl;
-                    for (int a = 0; a < afs->size(); a++) {
-                        std::cout << (*afs)[0].afst << std::endl;
-                        std::cout << (*afs)[0].identity_id << std::endl;
-                        std::cout << (*afs)[0].sender_id << std::endl;
+                    for (int a = 0; a < afs.size(); a++) {
+                        std::cout << afs[a].afst << std::endl;
+                        std::cout << afs[a].identity_id << std::endl;
+                        std::cout << afs[a].sender_id << std::endl;
                     }
                     std::cout << "/----------------/" << std::endl;
-                }
             } else if (strstr(args[0].c_str(), "address_factory_clear") != nullptr) {
                 address_factory_clear();
             } else if (strstr(args[0].c_str(), "message_send_file") != nullptr) {
@@ -233,4 +234,38 @@ int main(int argc, char **argv) {
     }  
     */
     /* ------------ */
+
+    /* TEST UNAMBIGUOUS IPV6 ADDRESS REPRESENTATION */
+    /*
+    char pbar[46];
+
+    string tmp("ff12::1337:f22:4733:a400");
+
+    snprintf((char *)&pbar, 46, "%s", tmp.c_str());
+
+    address_factory_fix_address_rfc((char *)&pbar);
+    std::cout << pbar << std::endl;
+
+    string tmp2("ff12::1337:f22:43:a400");
+
+    snprintf((char*)&pbar, 46, "%s", tmp2.c_str());
+
+    address_factory_fix_address_rfc((char*)&pbar);
+    std::cout << pbar << std::endl;
+
+    string tmp3("ff12::1337:0:43:a400");
+
+    snprintf((char*)&pbar, 46, "%s", tmp3.c_str());
+
+    address_factory_fix_address_rfc((char*)&pbar);
+    std::cout << pbar << std::endl;
+
+    string tmp4("ff12:0000:1234:3214:1337:0:43:a400");
+
+    snprintf((char*)&pbar, 46, "%s", tmp4.c_str());
+
+    address_factory_fix_address_rfc((char*)&pbar);
+    std::cout << pbar << std::endl;
+    */
+    /* -------------------------------------------- */
 }

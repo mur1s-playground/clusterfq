@@ -142,7 +142,6 @@ void crypto_key_private_generate(struct Key* key, int bits) {
 	key->private_key = crypto_key_private_get_buffer(pkey, &(key->private_key_len));
 	BN_free(e);
 	EVP_PKEY_free(pkey);
-	RSA_free(rsa);
 }
 
 void crypto_key_public_extract(struct Key* key) {
@@ -514,8 +513,10 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length) {
 void crypto_key_dump(struct Key* key) {
 	int i;
 	printf("/--- KEY DUMP -----------------------------------\n");
-	printf("/ name            : %s\n", key->name);
 	printf("/ name_len        : %d\n", key->name_len);
+	if (key->name_len > 0) {
+		printf("/ name            : %s\n", key->name);
+	}
 	printf("/ private_key_len : %d\n", key->private_key_len);
 	if (key->private_key_len > 0) {
 		printf("/ private_key     : ");

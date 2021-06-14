@@ -81,12 +81,13 @@ void server_loop(void* param) {
         udp_multicast_server.read(&udp_multicast_server, packet_buffer_packet, SERVER_MAX_PACKET_SIZE, (char*)packet_buffer_dst_addr, &out_len);
         
         string dst_addr((char *)packet_buffer_dst_addr);
-        vector<struct address_factory_sender>* senders = address_factory_sender_get(dst_addr);
+
+        vector<struct address_factory_sender> senders = address_factory_sender_get(dst_addr);
 
         bool packet_was_processed = false;
 
-        for (int s = 0; s < senders->size(); s++) {
-            struct address_factory_sender* afs = &(*senders)[s];
+        for (int s = 0; s < senders.size(); s++) {
+            struct address_factory_sender* afs = &senders[s];
             if (afs->afst == AFST_CONTACT) {
                 struct identity* i = identity_get(afs->identity_id);
                 struct contact* con = contact_get(&i->contacts, afs->sender_id);

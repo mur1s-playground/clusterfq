@@ -22,6 +22,7 @@ void identity_create(struct identity* i, string name) {
 	crypto_key_public_extract(&k);
 	crypto_key_name_set(&k, name.c_str(), name.length());
 	i->keys.push_back(k);
+	i->key_latest_creation = time(nullptr);
 
 	identity_create_fs(i);
 }
@@ -43,11 +44,7 @@ void identity_create_fs(struct identity* i) {
 	name_path << base_dir.str() << "name";
 	util_file_write_line(name_path.str(), i->name);
 
-	for (int k = 0; k < i->keys.size(); k++) {
-		stringstream key_path;
-		key_path << base_dir.str() << "key_" << k;
-		util_file_write_line(key_path.str(), i->keys[k].private_key);
-	}
+	identity_save_keys(i, base_dir.str());
 
 	stringstream contacts_dir;
 	contacts_dir << base_dir.str() << "contacts/";
@@ -75,10 +72,68 @@ void identity_load(struct identity *i, unsigned int id) {
 	vector<string> name = util_file_read_lines(name_path.str(), true);
 	i->name = name[0];
 
+	identity_load_keys(i, base_dir.str());
+
+	unsigned int c_id = 0;
+	stringstream contacts_path;
+	contacts_path << base_dir.str() << "contacts/";
+
+	while (true) {
+		stringstream contact_path;
+		contact_path << contacts_path.str() << c_id << "/";
+
+		if (util_path_exists(contact_path.str())) {
+			struct contact c;
+			contact_load(&c, id, c_id, contact_path.str());
+			i->contacts.push_back(c);
+		}
+		
+		c_id++;
+		//TODO: improve
+		if (c_id == 100) break;
+	}
+}
+
+void identity_migrate_key(struct identity* i, unsigned int bits) {
+	struct Key k;
+	crypto_key_name_set(&k, i->name.c_str(), i->name.length());;
+	crypto_key_private_generate(&k, (int)bits);
+	crypto_key_public_extract(&k);
+	crypto_key_dump(&k);
+	i->keys.push_back(k);
+	i->key_latest_creation = time(nullptr);
+	identity_save_keys(i);
+	for (int c = 0; c < i->contacts.size(); c++) {
+		message_send_migrate_key(i, &i->contacts[c]);
+	}
+}
+
+void identity_save_keys(struct identity* i) {
+	stringstream base_dir;
+	base_dir << "./identities/" << i->id << "/";
+	identity_save_keys(i, base_dir.str());
+}
+
+void identity_save_keys(struct identity* i, string base_dir) {
+	for (int k = 0; k < i->keys.size(); k++) {
+		stringstream key_path;
+		key_path << base_dir << "key_" << k;
+		util_file_write_line(key_path.str(), i->keys[k].private_key);
+	}
+	stringstream latest_path;
+	latest_path << base_dir << "key_latest_time";
+
+	stringstream time_latest;
+	time_latest << i->key_latest_creation;
+
+	util_file_write_line(latest_path.str(), time_latest.str());
+}
+
+void identity_load_keys(struct identity* i, string base_dir) {
 	unsigned int k_id = 0;
 	while (true) {
 		stringstream key_path;
-		key_path << base_dir.str() << "key_" << k_id;
+		key_path << base_dir << "key_" << k_id;
 		vector<string> priv_key = util_file_read_lines(key_path.str(), false);
 
 		if (priv_key.size() > 0) {
@@ -107,23 +162,14 @@ void identity_load(struct identity *i, unsigned int id) {
 		if (k_id == 100) break;
 	}
 
-	unsigned int c_id = 0;
-	stringstream contacts_path;
-	contacts_path << base_dir.str() << "contacts/";
+	stringstream latest_path;
+	latest_path << base_dir << "key_latest_time";
 
-	while (true) {
-		stringstream contact_path;
-		contact_path << contacts_path.str() << c_id << "/";
-
-		if (util_path_exists(contact_path.str())) {
-			struct contact c;
-			contact_load(&c, id, c_id, contact_path.str());
-			i->contacts.push_back(c);
-		}
-		
-		c_id++;
-		//TODO: improve
-		if (c_id == 100) break;
+	vector<string> latest_time = util_file_read_lines(latest_path.str(), true);
+	if (latest_time.size() > 0) {
+		i->key_latest_creation = stoi(latest_time[0]);
+	} else {
+		i->key_latest_creation = 0;
 	}
 }
 
@@ -151,7 +197,9 @@ void identities_list() {
 		std::cout << "/------------------/" << std::endl;
 		std::cout << identities[i].id << std::endl;
 		std::cout << identities[i].name << std::endl;
-		std::cout << "key_count: " << identities[i].keys.size() << std::endl;
+		for (int k = 0; k < identities[i].keys.size(); k++) {
+			crypto_key_dump(&identities[i].keys[k]);
+		}
 	}
 	std::cout << "/------------------/" << std::endl;
 }

@@ -27,6 +27,11 @@ bool address_factory_contains(string address, bool keep_lock = false);
 
 void address_factory_init();
 string address_factory_get_unique();
+
 void address_factory_add_address(string address, enum address_factory_sender_type afst, unsigned int identity_id, unsigned int sender_id);
-vector<struct address_factory_sender> *address_factory_sender_get(string address);
+void address_factory_remove_address(string address, enum address_factory_sender_type afst, unsigned int identity_id, unsigned int sender_id);
+
+vector<struct address_factory_sender> address_factory_sender_get(string address);
 void address_factory_clear();
+
+void address_factory_fix_address_rfc(char *potentially_broken_address_representation);
