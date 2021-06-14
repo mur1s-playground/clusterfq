@@ -350,16 +350,17 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	char* data = network_packet_read_str(np, &data_len);
 	int hash_len = 0;
 	char* hash_id = network_packet_read_str(np, &hash_len);
-	int sig_len = 0;
-	char* signature = network_packet_read_str(np, &sig_len);
-	bool verified = false;
-	if (crypto_verify_signature(&c->pub_key, data, data_len, signature, sig_len)) {
-		verified = true;
-	}
-	free(signature);
 	int chunk_id = network_packet_read_int(np);
 	int chunks_total = network_packet_read_int(np);
 	int sent_ct = network_packet_read_int(np);
+	int np_pos_pre_sig = np->position;
+	int sig_len = 0;
+	char* signature = network_packet_read_str(np, &sig_len);
+	bool verified = false;
+	if (crypto_verify_signature(&c->pub_key, np->data, np_pos_pre_sig, signature, sig_len)) {
+		verified = true;
+	}
+	free(signature);
 	network_packet_destroy(np);
 
 	struct packetset* ps = nullptr;
@@ -373,12 +374,13 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 		if (ps->chunks_received_ct[chunk_id] == 0) {
 			ps->chunks[chunk_id] = (unsigned char*)data;
 			ps->chunks_length[chunk_id] = data_len;
+			ps->verified[chunk_id] = verified;
 		} else if (!ps->verified[chunk_id] && verified) {
 			free(ps->chunks[chunk_id]);
 			ps->chunks[chunk_id] = (unsigned char*)data;
 			ps->chunks_length[chunk_id] = data_len;
+			ps->verified[chunk_id] = verified;
 		}
-		ps->verified[chunk_id] = verified;
 		ps->chunks_received_ct[chunk_id]++;
 		ps->transmission_last_receipt = time(nullptr);
 	} else {
@@ -518,7 +520,14 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						char* message = network_packet_read_str(npc, &message_len);
 						
 						if (message_len > 1024) {
-							std::cout << "\nFile: complete\n";
+							std::cout << "\nFile: complete " << message_len << std::endl;
+
+							unsigned char* hash = crypto_hash_md5((unsigned char *)message, message_len);
+							char* base_64 = crypto_base64_encode(hash, 16);
+							std::cout << "base64-hash: " << base_64 << std::endl;
+							free(hash);
+							free(base_64);
+
 							util_file_write_binary("test.bin", (unsigned char *)message, message_len);
 						} else {
 							std::cout << "\nMESSAGE: " << message << "\n";
@@ -543,9 +552,12 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 							}
 							if (same) {
 								struct packetset* pso = packetset_from_id(c->outgoing_messages[pkts]->packetset_id);
+
+								//TODO: this needs to go somewhere else
 								if (pso->mm->mt == MT_ESTABLISH_CONTACT) {
 									contact_address_rev_save(c, i->id);
 								}
+
 								pso->chunks_received_ct[receipt_of_chunk]++;
 								if (pso->transmission_first_receipt == 0) {
 									pso->transmission_first_receipt = time(nullptr);

@@ -203,6 +203,7 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 	int message_start = 0;
 	for (int c = 0; c < ps->chunks_ct; c++) {
 		if (ps->chunks_received_ct[c] > 0) {
+			message_start += ps->chunk_size;
 			continue;
 		}
 		sent_ct++;
@@ -225,14 +226,12 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		network_packet_create(&np, ps->chunk_size + 72 + 350);
 		network_packet_append_str(&np, &ps->mm->np->data[message_start], message_len);
 		network_packet_append_str(&np, (char *)ps->mm->msg_hash_id, 16);
-
-		char* signature = crypto_sign_message(&i->keys[0], &ps->mm->np->data[message_start], message_len);
-		network_packet_append_str(&np, signature, strlen(signature));
-		free(signature);
-
 		network_packet_append_int(&np, c);
 		network_packet_append_int(&np, ps->chunks_ct);
 		network_packet_append_int(&np, ps->chunks_sent_ct[c] + 1);
+		char* signature = crypto_sign_message(&i->keys[0], np.data, np.position);
+		network_packet_append_str(&np, signature, strlen(signature));
+		free(signature);
 
 		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION || ps->mm->mt == MT_DROP_SESSION) {
 			ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
@@ -243,7 +242,6 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 				network_packet_destroy(&np);
 				std::cout << "no key\n";
 				break;
-				//ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
 			}
 		}
 		network_packet_destroy(&np);
@@ -274,6 +272,7 @@ unsigned char* packageset_message_get(struct packetset* ps, unsigned int *out_le
 	for (int c = 0; c < ps->chunks_ct; c++) {
 		memcpy(&msg[msg_pos], ps->chunks[c], ps->chunks_length[c]);
 		msg_pos += ps->chunks_length[c];
+		
 	}
 	msg[total_len] = '\0';
 	*out_len = total_len;

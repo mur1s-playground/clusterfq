@@ -213,7 +213,7 @@ char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_l
 	int ret = RSA_sign(NID_sha256, m, m_len, sigret, &sigret_len, rsa);
 	free(m);
 	EVP_PKEY_free(pkey);
-	free(rsa);
+	RSA_free(rsa);
 	if (ret != 1) {
 		fprintf(stderr, "ERROR: Unable to sign message\n");
 		free(sigret);
@@ -472,7 +472,10 @@ char* crypto_base64_encode(unsigned char* to_encode, size_t length) {
 	BIO_set_close(bio, BIO_NOCLOSE);
 	BIO_free_all(bio);
 
-	encoded = (*bufferPtr).data;
+	encoded = (char*)malloc(bufferPtr->length + 1);
+	memcpy(encoded, bufferPtr->data, bufferPtr->length);
+	encoded[bufferPtr->length] = '\0';
+	free(bufferPtr);
 	return encoded;
 }
 

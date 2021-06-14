@@ -41,16 +41,14 @@ void message_send_receipt(struct identity* i, struct contact* c, struct packetse
 	network_packet_create(outer, 128 + 72 + 350);
 	network_packet_append_str(outer, np->data, np->position);
 	network_packet_append_str(outer, hash_id, 16);
-
-	char* signature = crypto_sign_message(&i->keys[0], np->data, np->position);
-	network_packet_append_str(outer, signature, strlen(signature));
-	free(signature);
-
 	network_packet_append_int(outer, 0); //chunk 0
 	network_packet_append_int(outer, 1); //total chunks 1
-
 	ps->chunks_sent_ct[chunk_id]++;
 	network_packet_append_int(outer, ps->chunks_sent_ct[chunk_id]);
+
+	char* signature = crypto_sign_message(&i->keys[0], outer->data, outer->position);
+	network_packet_append_str(outer, signature, strlen(signature));
+	free(signature);
 
 	unsigned int out_size = 0;
 	unsigned char* encrypted = nullptr;
@@ -114,6 +112,14 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, unsign
 	size_t out_len = 0;
 	string filename((char *)message);
 	util_file_read_binary(filename, file, &out_len);
+
+	std::cout << "file input: " << out_len << std::endl;
+
+    unsigned char *hash = crypto_hash_md5(file, out_len);
+	char* base_64 = crypto_base64_encode(hash, 16);
+	std::cout << "base64-hash: " << base_64 << std::endl;
+	free(hash);
+	free(base_64);
 
 	message_send(identity_id, contact_id, file, out_len);
 	free(file);
