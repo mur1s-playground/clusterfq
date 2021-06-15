@@ -27,6 +27,7 @@
 using namespace std;
 
 struct ThreadPool   main_thread_pool;
+bool                debug_toggle = false;
 
 int main(int argc, char **argv) {
     thread_pool_init(&main_thread_pool, 5);
@@ -74,6 +75,9 @@ int main(int argc, char **argv) {
             } else if (strstr(args[0].c_str(), "identity_migrate_key") != nullptr) {
                 struct identity* i = identity_get(stoi(args[1]));
                 identity_migrate_key(i, stoi(args[2]));
+            } else if (strstr(args[0].c_str(), "identity_remove_obsolete_keys") != nullptr) {
+                struct identity* i = identity_get(stoi(args[1]));
+                identity_remove_obsolete_keys(i);
             } else if (strstr(args[0].c_str(), "address_factory_sender_get") != nullptr) {
                 vector<struct address_factory_sender> afs = address_factory_sender_get(args[1]);
                     std::cout << std::endl;
@@ -86,7 +90,7 @@ int main(int argc, char **argv) {
             } else if (strstr(args[0].c_str(), "address_factory_clear") != nullptr) {
                 address_factory_clear();
             } else if (strstr(args[0].c_str(), "message_send_file") != nullptr) {
-                message_send_file(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str(), strlen(args[3].c_str()));
+                message_send_file(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str());
             } else if (strstr(args[0].c_str(), "message_send") != nullptr) {
                 message_send(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str(), strlen(args[3].c_str()));
             } else if (strstr(args[0].c_str(), "contact_save") != nullptr) {
@@ -99,7 +103,13 @@ int main(int argc, char **argv) {
                 struct identity *i = identity_get(stoi(args[1]));
                 struct contact* c = contact_get(&i->contacts, stoi(args[2]));
                 contact_stats_dump(c->cs, stoi(args[3]), stoi(args[4]));
-            } 
+            } else if(strstr(args[0].c_str(), "contact_get_chat") != nullptr) {
+                contact_get_chat(stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]));
+            } else if (strstr(args[0].c_str(), "packetset_loop_start") != nullptr) {
+                packetset_loop_start_if_needed();
+            } else if (strstr(args[0].c_str(), "debug_toggle") != nullptr) {
+                debug_toggle = !debug_toggle;
+            }
         }
         shell_cmd_queue.clear();
         mutex_release(&shell_cmd_lock);

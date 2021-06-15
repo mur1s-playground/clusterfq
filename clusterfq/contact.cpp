@@ -5,6 +5,7 @@
 
 #include <sstream>
 #include <iostream>
+#include <algorithm>
 
 #ifdef _WIN32
 #else
@@ -243,6 +244,7 @@ void contact_pubkey_load(struct contact* c, string path) {
 	pk_path << path << "pubkey";
 	vector<string> pubkey = util_file_read_lines(pk_path.str(), true);
 
+	crypto_key_init(&c->pub_key);
 	crypto_key_name_set(&c->pub_key, c->name.c_str(), c->name.length());
 	c->pub_key.private_key_len = 0;
 	c->pub_key.public_key_len = 0;
@@ -371,6 +373,7 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 bool contact_process_message(struct identity* i, struct contact* c, unsigned char* packet_buffer_packet, unsigned int packet_len) {
 	bool contact_established = false;
 	bool session_key_established = false;
+	bool symmetrically_decrypted = false;
 
 	char* decrypted = nullptr;
 	int out_len = 0;
@@ -380,6 +383,9 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 		//SESSION KEY HAS BEEN ESTABLISHED
 		session_key_established = true;
 		decrypted = (char *)crypto_key_sym_decrypt(&c->session_key_inc, packet_buffer_packet, packet_len, &out_len);
+		if (decrypted != nullptr) {
+			symmetrically_decrypted = true;
+		}
 	}
 	mutex_release(&c->session_key_inc_lock);
 
@@ -391,7 +397,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			if (decrypted != nullptr) {
 				if (ikey_id > c->identity_key_id) {
 					c->identity_key_id = ikey_id;
-					std::cout << "migrated pubkey for contact: " << c->name << std::endl;
+					std::cout << "migrated pubkey for contact: " << c->name << " by decryption" << std::endl;
 					contact_identity_key_id_save(c, i->id);
 				}
 				break;
@@ -419,8 +425,10 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	int sig_len = 0;
 	char* signature = network_packet_read_str(np, &sig_len);
 	bool verified = false;
-	if (crypto_verify_signature(&c->pub_key, np->data, np_pos_pre_sig, signature, sig_len)) {
+	if (crypto_verify_signature(&c->pub_key, np->data, np_pos_pre_sig, signature, sig_len, false)) {
 		verified = true;
+	} else {
+		std::cout << "message not verified" << std::endl;
 	}
 	free(signature);
 	network_packet_destroy(np);
@@ -442,7 +450,8 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			ps->chunks[chunk_id] = (unsigned char*)data;
 			ps->chunks_length[chunk_id] = data_len;
 			ps->verified[chunk_id] = verified;
-		} else {
+		} else if (ps->verified[chunk_id] && !verified && symmetrically_decrypted) {
+			//After PUBKEY_MIGRATION package resend of that MT_MIGRATE_PUBKEY package (, due to receipt packet loss,) is not verifiable.
 			ps->chunks_received_ct[chunk_id]++;
 			ps->transmission_last_receipt = time(nullptr);
 			message_send_receipt(i, c, ps, hash_id, chunk_id);
@@ -510,6 +519,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						c->name = string(name);
 						c->address = string(address_rev);
 						contact_address_save(c, i->id);
+						crypto_key_init(&c->pub_key);
 						c->pub_key.public_key = pubkey;
 						c->pub_key.public_key_len = pubkey_len;
 						contact_pubkey_save(c, i->id);
@@ -517,6 +527,9 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					for (int ch = 0; ch < chunks_total; ch++) {
 						message_send_receipt(i, c, ps, hash_id, ch);
 					}
+					free(name);
+					free(pubkey);
+					free(address_rev);
 					ps->processed = true;
 				} else {
 					contact_stats_update(c->cs, CSE_POLLUTION);
@@ -557,6 +570,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 						contact_sessionkey_save(c, i->id);
 					}
+					free(pubkey);
 					if (chunks_total == 1) {
 						message_send_receipt(i, c, ps, hash_id, chunk_id);
 					}
@@ -569,6 +583,8 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					c->address = string(address);
 					contact_address_save(c, i->id);
 					mutex_release(&c->outgoing_messages_lock);
+
+					free(address);
 
 					if (chunks_total == 1) {
 						message_send_receipt(i, c, ps, hash_id, chunk_id);
@@ -583,10 +599,12 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					c->pub_key.public_key = (char*)malloc(pubkey_len + 1);
 					memcpy(c->pub_key.public_key, pubkey, pubkey_len);
 					c->pub_key.public_key[pubkey_len] = '\0';
+					crypto_key_reset_internal(&c->pub_key);
 					mutex_release(&c->outgoing_messages_lock);
 
 					contact_pubkey_save(c, i->id);
 
+					free(pubkey);
 					std::cout << "migrated pubkey:\n" << c->pub_key.public_key << std::endl;
 				} else if (mt == MT_DROP_SESSION) {
 
@@ -611,29 +629,59 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 							message_send_receipt(i, c, ps, hash_id, chunk_id);
 						}
 				} else if (mt == MT_MESSAGE) {
-						int message_len = 0;
-						char* message = network_packet_read_str(npc, &message_len);
-						
-						if (message_len > 1024) {
-							std::cout << "\nFile: complete " << message_len << std::endl;
+					int message_len = 0;
+					char* message = network_packet_read_str(npc, &message_len);
+					std::cout << "\nMESSAGE: " << message << "\n";
 
-							unsigned char* hash = crypto_hash_md5((unsigned char *)message, message_len);
-							char* base_64 = crypto_base64_encode(hash, 16);
-							std::cout << "base64-hash: " << base_64 << std::endl;
-							free(hash);
-							free(base_64);
+					stringstream filename_base;
+					filename_base << "./identities/" << i->id << "/contacts/" << c->id << "/in/";
 
-							util_file_write_binary("test.bin", (unsigned char *)message, message_len);
-						} else {
-							std::cout << "\nMESSAGE: " << message << "\n";
-						}
+					stringstream filename_l;
+					do {
+						filename_l.clear();
+						filename_l << filename_base.str() << time(nullptr) << ".message";
+						util_sleep(1000);
+					} while (util_path_exists(filename_l.str()));
+					util_file_write_line(filename_l.str(), string(message));
+					//util_file_write_binary(filename_l.str(), (unsigned char*)message, message_len);
 
-						if (chunks_total == 1) {
-							message_send_receipt(i, c, ps, hash_id, chunk_id);
-						}
-				} else if (mt == MT_RECEIPT) {
+					free(message);
+					if (chunks_total == 1) {
+						message_send_receipt(i, c, ps, hash_id, chunk_id);
+					}
+				} else if (mt == MT_FILE) {
+					int filename_len = 0;
+					char* filename = network_packet_read_str(npc, &filename_len);
+
+					int message_len = 0;
+					char* message = network_packet_read_str(npc, &message_len);
+
+					std::cout << "\nFile: complete " << message_len << std::endl;
+					unsigned char* hash = crypto_hash_md5((unsigned char*)message, message_len);
+					char* base_64 = crypto_base64_encode(hash, 16);
+					std::cout << "base64-hash: " << base_64 << std::endl;
+					free(hash);
+					free(base_64);
+
+					stringstream filename_base;
+					filename_base << "./identities/" << i->id << "/contacts/" << c->id << "/in/";
+
+					stringstream filename_l;
+					do {
+						filename_l.clear();
+						filename_l << filename_base.str() << time(nullptr) << ".file." << filename;
+						util_sleep(1000);
+					} while (util_path_exists(filename_l.str()));
+					util_file_write_binary(filename_l.str(), (unsigned char*)message, message_len);
+
+					free(filename);
+					free(message);
+					if (chunks_total == 1) {
+						message_send_receipt(i, c, ps, hash_id, chunk_id);
+					}
+				} else if (mt == MT_RECEIPT || mt == MT_RECEIPT_COMPLETE) {
 						unsigned int receipt_of_chunk = network_packet_read_int(npc);
-						mutex_wait_for(&c->outgoing_messages_lock);
+						//mutex_wait_for(&c->outgoing_messages_lock);
 						//migrate
 						// - packetset map to map<hash_id, struct packetset>
 						//   remove packetsetid
@@ -647,8 +695,15 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 							}
 							if (same) {
 								struct packetset* pso = packetset_from_id(c->outgoing_messages[pkts]->packetset_id);
-
-								pso->chunks_received_ct[receipt_of_chunk]++;
+								if (mt == MT_RECEIPT_COMPLETE) {
+									for (int ch = 0; ch < pso->chunks_ct; ch++) {
+										if (pso->chunks_received_ct[ch] == 0) {
+											pso->chunks_received_ct[ch]++;
+										}
+									}
+								} else {
+									pso->chunks_received_ct[receipt_of_chunk]++;
+								}
 								if (pso->transmission_first_receipt == 0) {
 									pso->transmission_first_receipt = time(nullptr);
 								}
@@ -663,7 +718,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						packetset_destroy(ps);
 						c->incoming_packetsets.erase(string(hash_id));
 
-						mutex_release(&c->outgoing_messages_lock);
+						//mutex_release(&c->outgoing_messages_lock);
 				}
 			}
 			network_packet_destroy(npc);
@@ -675,4 +730,70 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	}
 	free(hash_id);
 	return true;
+}
+
+void contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from, time_t to) {
+	struct identity* id = identity_get(identity_id);
+	struct contact* c = contact_get(&id->contacts, contact_id);
+
+	stringstream filename_base_in;
+	filename_base_in << "./identities/" << id->id << "/contacts/" << c->id << "/in/";
+	vector<string> filenames_in = util_file_get_all_names(filename_base_in.str(), from, to);
+	for (int i = 0; i < filenames_in.size(); i++) {
+		stringstream concat;
+		concat << filenames_in[i] << ":" << filename_base_in.str();
+
+		filenames_in[i] = concat.str();
+	}
+
+	stringstream filename_base_out;
+	filename_base_out << "./identities/" << id->id << "/contacts/" << c->id << "/out/";
+	vector<string> filenames_out = util_file_get_all_names(filename_base_out.str(), from, to);
+	
+	for (int i = 0; i < filenames_out.size(); i++) {
+		stringstream concat;
+		concat << filenames_out[i] << ":" << filename_base_out.str();
+
+		filenames_out[i] = concat.str();
+	}
+
+	filenames_in.insert(filenames_in.end(), filenames_out.begin(), filenames_out.end());
+	sort(filenames_in.begin(), filenames_in.end());
+	std::cout << std::endl;
+	for (int i = 0; i < filenames_in.size(); i++) {
+		vector<string> splt = util_split(filenames_in[i], ":");
+
+		vector<string> t_splt = util_split(splt[0], ".");
+
+		time_t t = stoi(t_splt[0]);
+		tm* gmtm = gmtime(&t);
+		std::cout << asctime(gmtm) << " (";
+
+		if (strstr(splt[1].c_str(), "in") != nullptr) {
+			std::cout << c->name;
+		} else {
+			std::cout << id->name;
+		}
+		
+		std::cout << "): ";
+
+		if (strstr(splt[0].c_str(), ".file.") != nullptr) {
+			//is file
+			for (int f = 2; f < t_splt.size(); f++) {
+				std::cout << t_splt[f];
+				if (f + 1 < t_splt.size()) std::cout << ".";
+			}
+		} else {
+			stringstream fullpath;
+			fullpath << splt[1] << splt[0];
+			vector<string> lines = util_file_read_lines(fullpath.str());
+			for (int l = 0; l < lines.size(); l++) {
+				if (l > 0) std::cout << std::endl;
+				std::cout << lines[l];
+			}
+		}
+
+		std::cout << std::endl;
+	}
+	std::cout << std::endl;
 }

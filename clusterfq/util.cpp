@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <fstream>
 #include <cstring>
+#include <dirent.h>
 #endif
 
 char* util_issue_command(const char* cmd) {
@@ -192,6 +193,10 @@ void util_directory_create(const string path) {
 #endif
 }
 
+void util_file_delete(const string path) {
+	remove(path.c_str());
+}
+
 bool util_path_exists(const string path) {
 	struct stat buffer;
 	return (stat(path.c_str(), &buffer) == 0);
@@ -209,6 +214,80 @@ unsigned int util_path_id_get(const string base_path) {
 		f_id++;
 	}
 	return f_id;
+}
+
+string util_file_get_ext(const string path) {
+	vector<string> splt = util_split(path, ".");
+	if (splt.size() > 1) {
+		stringstream ext;
+		ext << "." << splt[splt.size() - 1];
+		string res = ext.str();
+		string chars = "/\\\n\r\t ";
+		res = util_trim(res, chars);
+		return res;
+	}
+	return "";
+}
+
+string util_file_get_name(const string path) {
+	vector<string> splt = util_split(path, "/");
+	if (splt.size() <= 1) {
+		splt = util_split(path, "\\");
+	}
+	stringstream name;
+	name << splt[splt.size() - 1];
+	string res = name.str();
+	string chars = "/\\\n\r\t ";
+	res = util_trim(res, chars);
+	return res;
+}
+
+void util_file_get_all_names_inner(vector<string>* filenames, string fname, time_t timerange_start, time_t timerange_end) {
+	bool take_file = true;
+
+	vector<string> splt = util_split(fname, ".");
+	int time = stoi(splt[0]);
+	if (timerange_start > 0 && time < timerange_start) {
+		take_file = false;
+	}
+	if (timerange_end > 0 && time > timerange_end) {
+		take_file = false;
+	}
+	if (take_file) filenames->push_back(fname);
+}
+
+vector<string> util_file_get_all_names(const string path, time_t timerange_start, time_t timerange_end) {
+	vector<string> filenames = vector<string>();
+#ifdef _WIN32
+	WIN32_FIND_DATAA data;
+
+	stringstream suf;
+	suf << path << "\\*";
+
+	HANDLE h = FindFirstFileA(suf.str().c_str(), &data);
+	do {
+		if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+
+		} else {
+			string fname(data.cFileName);
+
+			util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+		}
+	} while (FindNextFileA(h, &data));
+#else
+	DIR* dir;
+	struct dirent* ent;
+	if ((dir = opendir(path.c_str())) != NULL) {
+		while ((ent = readdir(dir)) != NULL) {
+			if (strstr(ent->d_name, "..") == nullptr && strstr(ent->d_name, ".") == nullptr) {
+				string fname(ent->d_name);
+				util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+			}
+		}
+		closedir(dir);
+	}
+#endif
+	return filenames;
 }
 
 vector<string>	util_split(const std::string& str, const std::string& separator) {

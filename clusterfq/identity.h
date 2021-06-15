@@ -34,6 +34,7 @@ void identity_load(unsigned int id);
 void identity_load(struct identity* i, unsigned int id);
 
 void identity_migrate_key(struct identity* i, unsigned int bits);
+void identity_remove_obsolete_keys(struct identity* i);
 
 void identity_save_keys(struct identity* i);
 void identity_save_keys(struct identity* i, string base_dir);

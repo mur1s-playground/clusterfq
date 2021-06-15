@@ -12,6 +12,9 @@ struct Key {
 
 	char* public_key;
 	int public_key_len;
+
+	void* mp_0;
+	void* mp_1;
 };
 
 /* INTERN */
@@ -31,13 +34,15 @@ extern void crypto_key_name_set(struct Key* key, const char* name, int name_len)
 extern void crypto_key_private_generate(struct Key* key, int bits);
 extern void crypto_key_public_extract(struct Key* key);
 
+extern void crypto_key_reset_internal(struct Key* key);
+
 extern void crypto_key_sym_generate(struct Key* key);
 extern void crypto_key_sym_finalise(struct Key* key);
 
 /* SIGN/VERIFY */
 
-char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len);
-bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* base64_signature, unsigned int base64_signature_len);
+char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len, unsigned int* sig_len = nullptr, bool base64 = true);
+bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* base64_signature, unsigned int base64_signature_len, bool base64 = true);
 
 /* ENCRYPTION/DECRYPTION */
 

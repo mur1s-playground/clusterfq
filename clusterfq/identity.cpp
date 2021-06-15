@@ -18,6 +18,7 @@ void identity_create(struct identity* i, string name) {
 	i->name = name;
 
 	struct Key k;
+	crypto_key_init(&k);
 	crypto_key_private_generate(&k, 2048);
 	crypto_key_public_extract(&k);
 	crypto_key_name_set(&k, name.c_str(), name.length());
@@ -96,15 +97,54 @@ void identity_load(struct identity *i, unsigned int id) {
 
 void identity_migrate_key(struct identity* i, unsigned int bits) {
 	struct Key k;
+	crypto_key_init(&k);
 	crypto_key_name_set(&k, i->name.c_str(), i->name.length());;
 	crypto_key_private_generate(&k, (int)bits);
 	crypto_key_public_extract(&k);
-	crypto_key_dump(&k);
 	i->keys.push_back(k);
 	i->key_latest_creation = time(nullptr);
 	identity_save_keys(i);
 	for (int c = 0; c < i->contacts.size(); c++) {
 		message_send_migrate_key(i, &i->contacts[c]);
+	}
+}
+
+void identity_remove_obsolete_keys(struct identity* i) {
+	bool* used_keys = (bool*)malloc(i->keys.size() * sizeof(bool));
+	memset(used_keys, 0, i->keys.size() * sizeof(bool));
+	for (int c = 0; c < i->contacts.size(); c++) {
+		struct contact* con = &i->contacts[c];
+		used_keys[con->identity_key_id] = true;
+		mutex_wait_for(&con->outgoing_messages_lock);
+	}
+	int removed = 0;
+	for (int k = 0; k < i->keys.size(); k++) {
+		if (used_keys[k] == false) {
+			for (int c = 0; c < i->contacts.size(); c++) {
+				struct contact* con = &i->contacts[c];
+				if (con->identity_key_id > k - removed) {
+					con->identity_key_id--;
+				}
+			}
+			removed++;
+		}
+	}
+	for (int k = i->keys.size() - 1; k >= 0; k--) {
+		if (used_keys[k] == false) {
+			i->keys.erase(i->keys.begin() + k);
+		}
+	}
+	free(used_keys);
+	for (int c = 0; c < i->contacts.size(); c++) {
+		struct contact* con = &i->contacts[c];
+		contact_identity_key_id_save(con, i->id);
+		mutex_release(&con->outgoing_messages_lock);
+	}
+	identity_save_keys(i);
+	for (int k = i->keys.size(); k < i->keys.size() + removed; k++) {
+		stringstream key_path;
+		key_path << "./identities/" << i->id << "/key_" << k;
+		util_file_delete(key_path.str());
 	}
 }
 
@@ -145,6 +185,7 @@ void identity_load_keys(struct identity* i, string base_dir) {
 			const char* prk_c = prk_s.c_str();
 
 			struct Key k;
+			crypto_key_init(&k);
 			crypto_key_name_set(&k, i->name.c_str(), i->name.length());
 			k.private_key = (char*)malloc(prk.str().length() + 1);
 			memcpy(k.private_key, prk_c, prk.str().length());
@@ -221,6 +262,7 @@ void identity_contact_add(unsigned int id, struct contact* c) {
 
 		unsigned int f_id = util_path_id_get(base_dir.str());
 		c->id = f_id;
+		c->identity_key_id = i->keys.size() - 1;
 		
 		i->contacts.push_back(*c);
 
@@ -246,7 +288,7 @@ void identity_share(unsigned int id, string name_to) {
 	if (i != nullptr) {
 		string address_rev = address_factory_get_unique();
 		std::cout << i->name << std::endl;
-		std::cout << i->keys[0].public_key << std::endl;
+		std::cout << i->keys[i->keys.size() - 1].public_key << std::endl;
 		std::cout << address_rev << std::endl;
 
 		struct contact c;
@@ -257,6 +299,7 @@ void identity_share(unsigned int id, string name_to) {
 
 		c.id = f_id;
 		contact_create_open(&c, name_to, address_rev);
+		c.identity_key_id = i->keys.size() - 1;
 
 		stringstream contact_path;
 		contact_path << base_dir.str() << c.id << "/";

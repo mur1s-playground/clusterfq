@@ -8,6 +8,7 @@
 #include "identity.h"
 #include "contact.h"
 #include "crypto.h"
+#include "clusterfq.h"
 
 #include <iostream>
 #ifdef _WIN32
@@ -80,6 +81,8 @@ void server_loop(void* param) {
 
         udp_multicast_server.read(&udp_multicast_server, packet_buffer_packet, SERVER_MAX_PACKET_SIZE, (char*)packet_buffer_dst_addr, &out_len);
         
+        if (debug_toggle) std::cout << "received packet on: " << packet_buffer_dst_addr << std::endl;
+
         string dst_addr((char *)packet_buffer_dst_addr);
 
         vector<struct address_factory_sender> senders = address_factory_sender_get(dst_addr);

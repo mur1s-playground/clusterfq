@@ -444,6 +444,13 @@ void network_udp_multicast_socket_server_create(struct Network* network, int net
 	if (setsockopt(network->socket, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable, sizeof(int)) < 0)
 		fprintf(stderr, "ERROR: Unable to set reuseaddr\n");
 
+	int bufsize = 1024 * 1024 * 5;
+	if (setsockopt(network->socket, SOL_SOCKET, SO_RCVBUF, (const char*)&bufsize, sizeof(int)) < 0)
+		fprintf(stderr, "ERROR: Unable to set rcvbuf\n");
+
+	if (setsockopt(network->socket, SOL_SOCKET, SO_SNDBUF, (const char*)&bufsize, sizeof(int)) < 0)
+		fprintf(stderr, "ERROR: Unable to set rcvbuf\n");
+
 #ifdef _WIN32
 	if (bind(network->socket, network->ip6addr->ai_addr, (int)network->ip6addr->ai_addrlen) == SOCKET_ERROR) {
 #else
@@ -575,6 +582,14 @@ void network_udp_multicast_socket_client_create(struct Network* network, const c
 		network->state = NS_ERROR;
 		return;
 	}
+
+	int bufsize = 1024 * 1024 * 5;
+	if (setsockopt(network->socket, SOL_SOCKET, SO_RCVBUF, (const char*)&bufsize, sizeof(int)) < 0)
+		fprintf(stderr, "ERROR: Unable to set rcvbuf\n");
+
+	if (setsockopt(network->socket, SOL_SOCKET, SO_SNDBUF, (const char*)&bufsize, sizeof(int)) < 0)
+		fprintf(stderr, "ERROR: Unable to set rcvbuf\n");
+
 	network->send = &network_socket_send;
 	network->state = NS_CREATED;
 }

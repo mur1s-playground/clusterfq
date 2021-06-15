@@ -13,7 +13,9 @@ enum message_type {
 	MT_MIGRATE_ADDRESS,
 	MT_DROP_SESSION,
 	MT_MESSAGE,
+	MT_FILE,
 	MT_RECEIPT,
+	MT_RECEIPT_COMPLETE,
 };
 
 struct message_receipt {
@@ -35,13 +37,17 @@ struct message_meta {
 	unsigned int			packetset_id;
 };
 
-void message_send_receipt(struct identity* i, struct contact* c, struct packetset* ps, char* hash_id, unsigned int chunk_id);
 
-void message_send_migrate_key(struct identity* i, struct contact* c);
+
+void message_check_establish_contact(struct identity* i, struct contact* c);
 void message_check_session_key(struct identity* i, struct contact* c);
 
+void message_check_pre(struct identity* i, struct contact* c);
+
+void message_send_receipt(struct identity* i, struct contact* c, struct packetset* ps, char* hash_id, unsigned int chunk_id);
+void message_send_migrate_key(struct identity* i, struct contact* c);
 void message_send_session_key(struct identity* i, struct contact* c, bool prepend = false);
 void message_send_new_address(struct identity* i, struct contact* c);
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);
-void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);
+void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path);

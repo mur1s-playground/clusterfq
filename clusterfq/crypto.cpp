@@ -64,6 +64,8 @@ extern void crypto_key_init(struct Key* key) {
 	key->private_key_len = 0;
 	key->public_key = nullptr;
 	key->public_key_len = 0;
+	key->mp_0 = nullptr;
+	key->mp_1 = nullptr;
 }
 
 struct Key* crypto_key_copy(struct Key* key) {
@@ -165,6 +167,13 @@ void crypto_key_public_extract(struct Key* key) {
 	BIO_free(bp);
 }
 
+void crypto_key_reset_internal(struct Key* key) {
+	if (key->mp_0 != nullptr) {
+		RSA_free((RSA*)key->mp_0);
+		key->mp_0 = nullptr;
+	}
+}
+
 void crypto_key_sym_generate(struct Key* key) {
 	key->private_key = crypto_random(ECC_PRV_KEY_SIZE);
 	key->private_key_len = ECC_PRV_KEY_SIZE;
@@ -187,69 +196,93 @@ void crypto_key_sym_finalise(struct Key* key) {
 
 /* SIGN/VERIFY */
 
-char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len) {
+char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_len, unsigned int* sig_len, bool base64) {
 	RSA* rsa = NULL;
-	BIO* keybio = BIO_new(BIO_s_mem());
-	EVP_PKEY* pkey = crypto_key_private_get(key->private_key, key->private_key_len);
-	PEM_write_bio_PrivateKey(keybio, pkey, NULL, NULL, 0, 0, NULL);
-	if (!keybio) {
-		fprintf(stderr, "ERROR: Unable to create key BIO\n");
-		return nullptr;
+	if (key->mp_0 == nullptr) {
+		BIO* keybio = BIO_new(BIO_s_mem());
+		//if (key->private_key_len == 0) return nullptr;
+		EVP_PKEY* pkey = crypto_key_private_get(key->private_key, key->private_key_len);
+		PEM_write_bio_PrivateKey(keybio, pkey, NULL, NULL, 0, 0, NULL);
+		if (!keybio) {
+			fprintf(stderr, "ERROR: Unable to create key BIO\n");
+			return nullptr;
+		}
+		rsa = PEM_read_bio_RSAPrivateKey(keybio, NULL, NULL, NULL);
+		if (!rsa) {
+			fprintf(stderr, "ERROR: Unable to create RSA\n");
+			return nullptr;
+		}
+		BIO_free(keybio);
+		key->mp_0 = (void*)rsa;
+		EVP_PKEY_free(pkey);
+	} else {
+		rsa = (RSA*)key->mp_0;
 	}
-	rsa = PEM_read_bio_RSAPrivateKey(keybio, NULL, NULL, NULL);
-	if (!rsa) {
-		fprintf(stderr, "ERROR: Unable tocreate RSA\n");
-		return nullptr;
-	}
-	BIO_free(keybio);
 
 	unsigned char* m = crypto_hash_sha256((unsigned char *)to_sign, to_sign_len);
 	unsigned int m_len = SHA256_DIGEST_LENGTH;
 
 	unsigned char* sigret = (unsigned char*) malloc(RSA_size(rsa));
 	unsigned int sigret_len = 0;
-
 	int ret = RSA_sign(NID_sha256, m, m_len, sigret, &sigret_len, rsa);
 	free(m);
-	EVP_PKEY_free(pkey);
-	RSA_free(rsa);
 	if (ret != 1) {
 		fprintf(stderr, "ERROR: Unable to sign message\n");
 		free(sigret);
 		return nullptr;
 	}
-	char* base64_text = crypto_base64_encode(sigret, sigret_len);
-	free(sigret);
-	return base64_text;
+	if (base64) {
+		char* base64_text = crypto_base64_encode(sigret, sigret_len);
+		free(sigret);
+		if (sig_len != nullptr) {
+			*sig_len = strlen(base64_text);
+		}
+		return base64_text;
+	} else {
+		if (sig_len != nullptr) {
+			*sig_len = sigret_len;
+		}
+		return (char *)sigret;
+	}
 }
 
-bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* base64_signature, unsigned int base64_signature_len) {
+bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_verify_len, char* signature, unsigned int signature_len, bool base64) {
 	RSA* rsa = NULL;
-	BIO* keybio = BIO_new(BIO_s_mem());
-	EVP_PKEY* pkey = crypto_key_public_get(key);
-	PEM_write_bio_PUBKEY(keybio, pkey);
-	if (!keybio) {
-		fprintf(stderr, "ERROR: failed to create key BIO\n");
-		return NULL;
+	if (key->mp_0 == nullptr) {
+		if (key->public_key_len == 0) return false;
+		BIO* keybio = BIO_new(BIO_s_mem());
+		EVP_PKEY* pkey = crypto_key_public_get(key);
+		PEM_write_bio_PUBKEY(keybio, pkey);
+		if (!keybio) {
+			fprintf(stderr, "ERROR: failed to create key BIO\n");
+			return false;
+		}
+		rsa = PEM_read_bio_RSA_PUBKEY(keybio, NULL, NULL, NULL);
+		if (!rsa) {
+			fprintf(stderr, "ERROR: failed to create RSA\n");
+			return false;
+		}
+		BIO_free(keybio);
+		EVP_PKEY_free(pkey);
+		key->mp_0 = (void*)rsa;
+	} else {
+		rsa = (RSA*)key->mp_0;
 	}
-	rsa = PEM_read_bio_RSA_PUBKEY(keybio, NULL, NULL, NULL);
-	if (!rsa) {
-		fprintf(stderr, "ERROR: failed to create RSA\n");
-		return NULL;
-	}
-	BIO_free(keybio);
 
 	unsigned char* m = crypto_hash_sha256((unsigned char*)to_verify, to_verify_len);
 	unsigned int m_len = SHA256_DIGEST_LENGTH;
 
-	size_t signature_len = 0;
-	unsigned char* signature = crypto_base64_decode(base64_signature, &signature_len);
+	int ret = 0;
+	if (base64) {
+		size_t signature_len_b64 = 0;
+		unsigned char* signature_b64 = crypto_base64_decode(signature, &signature_len_b64);
 
-	int ret = RSA_verify(NID_sha256, m, m_len, signature, signature_len, rsa);
-	EVP_PKEY_free(pkey);
-	RSA_free(rsa);
+		ret = RSA_verify(NID_sha256, m, m_len, signature_b64, signature_len_b64, rsa);
+		free(signature_b64);
+	} else {
+		ret = RSA_verify(NID_sha256, m, m_len, (unsigned char *)signature, signature_len, rsa);
+	}
 	free(m);
-	free(signature);
 
 	if (ret != 1) {
 		fprintf(stderr, "ERROR: failed to verify signature for message\n");
@@ -262,27 +295,33 @@ bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_v
 
 char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encrypt_size, unsigned int* out_size) {
 	RSA* rsa = NULL;
-	BIO* keybio = BIO_new(BIO_s_mem());
-	EVP_PKEY* pkey = crypto_key_public_get(key);
-	PEM_write_bio_PUBKEY(keybio, pkey);
-	if (!keybio) {
-		fprintf(stderr, "ERROR: failed to create key BIO\n");
-		return NULL;
-	}
-	rsa = PEM_read_bio_RSA_PUBKEY(keybio, NULL, NULL, NULL);
-	if (!rsa) {
-		fprintf(stderr, "ERROR: failed to create RSA\n");
-		return NULL;
-	}
-	BIO_free(keybio);
+	if (key->mp_0 == nullptr) {
+		BIO* keybio = BIO_new(BIO_s_mem());
+		EVP_PKEY* pkey = crypto_key_public_get(key);
+		PEM_write_bio_PUBKEY(keybio, pkey);
+		if (!keybio) {
+			fprintf(stderr, "ERROR: failed to create key BIO\n");
+			return NULL;
+		}
+		rsa = PEM_read_bio_RSA_PUBKEY(keybio, NULL, NULL, NULL);
+		if (!rsa) {
+			fprintf(stderr, "ERROR: failed to create RSA\n");
+			return NULL;
+		}
+		BIO_free(keybio);
 
-	EVP_PKEY* verification_key = EVP_PKEY_new();
-	int rc = EVP_PKEY_assign_RSA(verification_key, RSAPublicKey_dup(rsa));
-	if (rc != 1) {
-		fprintf(stderr, "ERROR: rc != 1\n");
-		return NULL;
+		EVP_PKEY* verification_key = EVP_PKEY_new();
+		int rc = EVP_PKEY_assign_RSA(verification_key, RSAPublicKey_dup(rsa));
+		if (rc != 1) {
+			fprintf(stderr, "ERROR: rc != 1\n");
+			return NULL;
+		}
+		if (verification_key) EVP_PKEY_free(verification_key);
+		key->mp_0 = (void*)rsa;
+		EVP_PKEY_free(pkey);
+	} else {
+		rsa = (RSA*)key->mp_0;
 	}
-	if (verification_key) EVP_PKEY_free(verification_key);
 	int size = RSA_size(rsa);
 	
 	int part = size - 50;
@@ -302,43 +341,47 @@ char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encryp
 		int ret = RSA_public_encrypt(len, (unsigned char*)&to_encrypt[e * (part)], &encrypted[e * size], rsa, RSA_PKCS1_OAEP_PADDING);
 		if (ret == -1) {
 			fprintf(stderr, "ERROR: Unable to encrypt\n");
-			EVP_PKEY_free(pkey);
-			RSA_free(rsa);
 			return NULL;
 		}
 		cur_pos += len;
 	}
+	
 	encrypted[parts * size] = '\0';
-	EVP_PKEY_free(pkey);
-	RSA_free(rsa);
 	return (char *)encrypted;
 }
 
 char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decrypt_size, int* out_len) {
 	RSA* rsa = NULL;
-	BIO* keybio = BIO_new(BIO_s_mem());
-	EVP_PKEY* pkey = crypto_key_private_get(key->private_key, key->private_key_len);
-	PEM_write_bio_PrivateKey(keybio, pkey, NULL, NULL, 0, 0, NULL);
-	if (!keybio) {
-		fprintf(stderr, "ERROR: Unable to create key BIO\n");
-		return nullptr;
-	}
-	rsa = PEM_read_bio_RSAPrivateKey(keybio, NULL, NULL, NULL);
-	if (!rsa) {
-		fprintf(stderr, "ERROR: Unable tocreate RSA\n");
-		return nullptr;
-	}
-	BIO_free(keybio);
+	if (key->mp_0 == nullptr) {
+		BIO* keybio = BIO_new(BIO_s_mem());
+		EVP_PKEY* pkey = crypto_key_private_get(key->private_key, key->private_key_len);
+		PEM_write_bio_PrivateKey(keybio, pkey, NULL, NULL, 0, 0, NULL);
+		if (!keybio) {
+			fprintf(stderr, "ERROR: Unable to create key BIO\n");
+			return nullptr;
+		}
+		rsa = PEM_read_bio_RSAPrivateKey(keybio, NULL, NULL, NULL);
+		if (!rsa) {
+			fprintf(stderr, "ERROR: Unable tocreate RSA\n");
+			return nullptr;
+		}
+		BIO_free(keybio);
 
-	EVP_PKEY* verification_key = EVP_PKEY_new();
-	int rc = EVP_PKEY_assign_RSA(verification_key, RSAPrivateKey_dup(rsa));
-	if (rc != 1) {
-		fprintf(stderr, "ERROR: rc != 1\n");
-		RSA_free(rsa);
+		EVP_PKEY* verification_key = EVP_PKEY_new();
+		int rc = EVP_PKEY_assign_RSA(verification_key, RSAPrivateKey_dup(rsa));
+		if (rc != 1) {
+			fprintf(stderr, "ERROR: rc != 1\n");
+			RSA_free(rsa);
+			EVP_PKEY_free(pkey);
+			return nullptr;
+		}
+		if (verification_key) EVP_PKEY_free(verification_key);
+		key->mp_0 = (void*)rsa;
 		EVP_PKEY_free(pkey);
-		return nullptr;
+	} else {
+		rsa = (RSA*)key->mp_0;
 	}
-	if (verification_key) EVP_PKEY_free(verification_key);
+
 	unsigned char* decrypted = (unsigned char*)malloc((to_decrypt_size + 1) * sizeof(unsigned char));
 	memset(decrypted, 0, (to_decrypt_size + 1) * sizeof(unsigned char));
 
@@ -352,8 +395,6 @@ char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decry
 		int ret = RSA_private_decrypt(size, (unsigned char*)&to_decrypt[e * size], &decrypted[e * (part)], rsa, RSA_PKCS1_OAEP_PADDING);
 		if (ret == -1) {
 			fprintf(stderr, "ERROR: Unable to decrypt\n");
-			RSA_free(rsa);
-			EVP_PKEY_free(pkey);
 			return NULL;
 		}
 		len_total += ret;
@@ -361,8 +402,7 @@ char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decry
 	decrypted = (unsigned char*)realloc(decrypted, (len_total + 1) * sizeof(unsigned char));
 	decrypted[len_total] = '\0';
 	if (out_len != nullptr) *out_len = len_total;
-	RSA_free(rsa);
-	EVP_PKEY_free(pkey);
+	//RSA_free(rsa);
 	return (char*)decrypted;
 }
 
