@@ -30,6 +30,8 @@ struct ThreadPool   main_thread_pool;
 bool                debug_toggle = false;
 
 int main(int argc, char **argv) {
+    std::ios_base::sync_with_stdio(true);
+
     thread_pool_init(&main_thread_pool, 5);
 
     address_factory_init();
@@ -204,45 +206,90 @@ int main(int argc, char **argv) {
     /*
     struct Network n, n2;
 
-    char* packet_data = (char *)malloc(100);
+    char* packet_data = (char *)malloc(30000);
 
-    if (argc == 2) {
+    int packet_size = 1024;
+
+    if (argc == 2 || argc == 4) {
         network_init(&n);
         network_udp_multicast_socket_server_create(&n, 1337);
-        network_udp_multicast_socket_server_group_join(&n, "ff12::1337:1337:1337:1337");
-        network_udp_multicast_socket_server_group_join(&n, "ff12::1337:1337:1337:1338");
+        if (argc == 2) {
+            network_udp_multicast_socket_server_group_join(&n, "ff12::1337:1337:1337:1337");
+            
+        } else if (argc == 4) {
+            network_udp_multicast_socket_server_group_join(&n, "ff12::1337:1337:1337:1338");
+        }
+
+        time_t start = time(nullptr);
+        time_t now;
+        int packet_count = 0;
 
         while (true) {
-            memset(packet_data, 0, 100);
+            memset(packet_data, 0, packet_size);
 
             char dst_address[46];
             dst_address[45] = '\0';
 
-            n.read(&n, packet_data, 100, (char *)&dst_address);
+            unsigned int packet_len = 0;
+            n.read(&n, packet_data, packet_size, (char *)&dst_address, &packet_len);
 
-            std::cout << packet_data << std::endl;
-            std::cout << dst_address << std::endl;
+            now = time(nullptr);
+            packet_count++;
+            if (packet_count % 50 == 0) {
+                std::cout << packet_count << std::endl;
+                std::cout << packet_count * packet_size << std::endl;
+            }
+
+            if (packet_data[0] == 'd') break;
+            //std::cout << packet_data << std::endl;
+            //std::cout << dst_address << std::endl;
         }
+
+        std::cout << packet_count << std::endl;
+        std::cout << now - start << std::endl;
+        std::cout << packet_count * packet_size << std::endl;
     } else {
         network_init(&n);
-        network_udp_multicast_socket_client_create(&n, "ff12::1337:1337:1337:1337", 1337);
-
-        network_init(&n2);
-        network_udp_multicast_socket_client_create(&n2, "ff12::1337:1337:1337:1338", 1337);
-
-        for (char i = 0; i < 10; i++) {
-            memset(packet_data, 0, 10);
-            packet_data[0] = 48 + i;
-           n.send(&n, packet_data, 10);
+        if (argc == 1) {
+           
+            network_udp_multicast_socket_client_create(&n, "ff12::1337:1337:1337:1337", 1337);
+        } else {
+            //network_init(&n2);
+            network_udp_multicast_socket_client_create(&n, "ff12::1337:1337:1337:1338", 1337);
         }
 
+        time_t start = time(nullptr);
+
+        int bulk_ct = 1;
+
+        for (int i = 0; i < 1000; i++) {
+            memset(packet_data, 0, packet_size);
+            if (i >= 998) {
+                packet_data[0] = 'd';
+            }
+            n.send(&n, packet_data, packet_size);
+
+            if (i / (bulk_ct * 50) > 0) {
+                time_t now;
+                do {
+                    now = time(nullptr);
+
+                } while (now - start < 1);
+
+                start = now;
+                bulk_ct++;
+            }
+        }
+
+        //std::cout << now - start << std::endl;
+        /*
         for (char i = 0; i < 10; i++) {
             memset(packet_data, 0, 10);
             packet_data[0] = 58 + i;
             n2.send(&n2, packet_data, 10);
         }
-    }  
-    */
+        */
+    //}
     /* ------------ */
 
     /* TEST UNAMBIGUOUS IPV6 ADDRESS REPRESENTATION */

@@ -6,6 +6,10 @@
 
 using namespace std;
 
+string& util_ltrim(string& str, const string& chars);
+string& util_rtrim(string& str, const string& chars);
+string& util_trim(string& str, const string& chars);
+
 char* util_issue_command(const char* cmd);
 
 void util_file_write_line(const string filepath, const char* line);

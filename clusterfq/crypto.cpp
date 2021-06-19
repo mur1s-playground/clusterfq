@@ -495,7 +495,7 @@ unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt
 
 /* ENCODE/DECODE */
 
-char* crypto_base64_encode(unsigned char* to_encode, size_t length) {
+char* crypto_base64_encode(unsigned char* to_encode, size_t length, bool slash_to_underscore) {
 	char* encoded;
 
 	BIO* bio, * b64;
@@ -514,7 +514,13 @@ char* crypto_base64_encode(unsigned char* to_encode, size_t length) {
 	encoded = (char*)malloc(bufferPtr->length + 1);
 	memcpy(encoded, bufferPtr->data, bufferPtr->length);
 	encoded[bufferPtr->length] = '\0';
+	if (slash_to_underscore) {
+		for (int h = 0; h < bufferPtr->length; h++) {
+			if (encoded[h] == '/') encoded[h] = '_';
+		}
+	}
 	free(bufferPtr);
+	
 	return encoded;
 }
 
@@ -531,19 +537,32 @@ size_t crypto_calc_decode_length(const char* to_decode) {
 	return (len * 3) / 4 - padding;
 }
 
-unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length) {
+unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, bool underscore_to_slash) {
 	BIO* bio, * b64;
 
 	int decode_len = crypto_calc_decode_length(to_decode);
 	unsigned char* buffer = (unsigned char*)malloc(decode_len + 1);
 	buffer[decode_len] = '\0';
 
-	bio = BIO_new_mem_buf(to_decode, -1);
+	char* t_d = (char *)to_decode;
+	if (underscore_to_slash) {
+		t_d = (char*)malloc(strlen(to_decode) + 1);
+		t_d[strlen(to_decode)] = '\0';
+		for (int h = 0; h < strlen(to_decode); h++) {
+			if (to_decode[h] == '_') {
+				t_d[h] = '/';
+			} else {
+				t_d[h] = to_decode[h];
+			}
+		}
+	}
+	bio = BIO_new_mem_buf(t_d, -1);
 	b64 = BIO_new(BIO_f_base64());
 	bio = BIO_push(b64, bio);
 
 	*out_length = BIO_read(bio, buffer, strlen(to_decode));
 	BIO_free_all(bio);
+	if (underscore_to_slash) free(t_d);
 	return buffer;
 }
 

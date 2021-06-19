@@ -636,15 +636,21 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					stringstream filename_base;
 					filename_base << "./identities/" << i->id << "/contacts/" << c->id << "/in/";
 
+					char* base64_packetset_hash = crypto_base64_encode((unsigned char *)hash_id, 16, true);
+					string b64_ph(base64_packetset_hash);
+					b64_ph = util_rtrim(b64_ph, "\r\n\t ");
+
 					stringstream filename_l;
 					do {
 						filename_l.clear();
-						filename_l << filename_base.str() << time(nullptr) << ".message";
+						filename_l << filename_base.str() << time(nullptr) << "." << b64_ph <<".message";
 						util_sleep(1000);
 					} while (util_path_exists(filename_l.str()));
 					util_file_write_line(filename_l.str(), string(message));
-					//util_file_write_binary(filename_l.str(), (unsigned char*)message, message_len);
 
+					std::cout << "saving file: " << filename_l.str();
+
+					free(base64_packetset_hash);
 					free(message);
 					if (chunks_total == 1) {
 						message_send_receipt(i, c, ps, hash_id, chunk_id);
@@ -666,14 +672,19 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					stringstream filename_base;
 					filename_base << "./identities/" << i->id << "/contacts/" << c->id << "/in/";
 
+					char* base64_packetset_hash = crypto_base64_encode((unsigned char*)hash_id, 16, true);
+					string b64_ph(base64_packetset_hash);
+					b64_ph = util_rtrim(b64_ph, "\r\n\t ");
+
 					stringstream filename_l;
 					do {
 						filename_l.clear();
-						filename_l << filename_base.str() << time(nullptr) << ".file." << filename;
+						filename_l << filename_base.str() << time(nullptr) << "." << b64_ph << ".file." << filename;
 						util_sleep(1000);
 					} while (util_path_exists(filename_l.str()));
 					util_file_write_binary(filename_l.str(), (unsigned char*)message, message_len);
 
+					free(base64_packetset_hash);
 					free(filename);
 					free(message);
 					if (chunks_total == 1) {
@@ -681,10 +692,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					}
 				} else if (mt == MT_RECEIPT || mt == MT_RECEIPT_COMPLETE) {
 						unsigned int receipt_of_chunk = network_packet_read_int(npc);
-						//mutex_wait_for(&c->outgoing_messages_lock);
-						//migrate
-						// - packetset map to map<hash_id, struct packetset>
-						//   remove packetsetid
+						mutex_wait_for(&c->outgoing_messages_lock);
 						for (int pkts = 0; pkts < c->outgoing_messages.size(); pkts++) {
 							bool same = true;
 							for (int h = 0; h < 16; h++) {
@@ -717,8 +725,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						}
 						packetset_destroy(ps);
 						c->incoming_packetsets.erase(string(hash_id));
-
-						//mutex_release(&c->outgoing_messages_lock);
+						mutex_release(&c->outgoing_messages_lock);
 				}
 			}
 			network_packet_destroy(npc);

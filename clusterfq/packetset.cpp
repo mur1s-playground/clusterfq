@@ -23,10 +23,40 @@ bool							packetset_loop_running		= false;
 int								packetset_loop_thread_id	= -1;
 struct mutex					packetset_loop_lock;
 
+int								packetset_limit_per_second	= 2;
+int								packetset_counter			= 0;
+time_t							packetset_time_1			= 0;
+time_t							packetset_time_2			= 0;
+
+
 vector<struct message_receipt>	packetset_receipts_out = vector<struct message_receipt>();
 
 void packetset_static_init() {
 	mutex_init(&packetset_loop_lock);
+}
+
+void packetset_packet_limiter() {
+	packetset_counter++;
+	if (packetset_counter > packetset_limit_per_second) {
+		do {
+			util_sleep(1000 / packetset_limit_per_second);
+			packetset_time_2 = time(nullptr);
+		} while (packetset_time_2 - packetset_time_1 < 1);
+		packetset_time_1 = time(nullptr);
+		packetset_counter = 0;
+	}
+}
+
+void packetset_send_receipts(bool lock) {
+	if (lock) mutex_wait_for(&packetset_loop_lock);
+	for (int pro = 0; pro < packetset_receipts_out.size(); pro++) {
+		struct message_receipt* mr = &packetset_receipts_out[pro];
+		client_send_to(mr->address, mr->packet, mr->packet_len);
+		free(mr->packet);
+		packetset_packet_limiter();
+	}
+	packetset_receipts_out.clear();
+	if (lock) mutex_release(&packetset_loop_lock);
 }
 
 void packetset_loop(void* unused) {
@@ -34,12 +64,7 @@ void packetset_loop(void* unused) {
 	while (true) {
 		if (debug_toggle) std::cout << "packset_loop: begin_while_loop" << std::endl;
 		mutex_wait_for(&packetset_loop_lock);
-		for (int pro = 0 ; pro < packetset_receipts_out.size(); pro++) {
-			struct message_receipt* mr = &packetset_receipts_out[pro];
-			client_send_to(mr->address, mr->packet, mr->packet_len);
-			free(mr->packet);
-		}
-		packetset_receipts_out.clear();
+		packetset_send_receipts(false);
 
 		struct contact *c = contact_static_get_pending();
 		if (c == nullptr) {
@@ -69,7 +94,7 @@ void packetset_loop(void* unused) {
 
 				if (!ps->complete) {
 					if (ps->transmission_start == 0 || 
-						(ps->transmission_start > 0 && time(nullptr) - ps->transmission_latest_sent >= 1)) {
+						(ps->transmission_start > 0 && time(nullptr) - ps->transmission_latest_sent >= 2)) {
 						unsigned int chunks_left = packetset_prepare_send(ps);
 						if (chunks_left > 0) {
 							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
@@ -125,10 +150,14 @@ void packetset_loop(void* unused) {
 								free(file_c);
 							}
 
+							char* base64_packetset_hash = crypto_base64_encode((unsigned char*)ps->mm->msg_hash_id, 16, true);
+							string b64_ph(base64_packetset_hash);
+							b64_ph = util_rtrim(b64_ph, "\r\n\t ");
+
 							stringstream filename_l;
 							do {
 								filename_l.clear();
-								filename_l << filename_base.str() << time(nullptr) << ".";
+								filename_l << filename_base.str() << time(nullptr) <<"."<< b64_ph <<".";
 								if (ps->mm->mt == MT_MESSAGE) {
 									filename_l << "message";
 								} else if (ps->mm->mt == MT_FILE) {
@@ -138,6 +167,7 @@ void packetset_loop(void* unused) {
 							} while (util_path_exists(filename_l.str()));
 							util_file_write_line(filename_l.str(), string(content));
 							free(content);
+							free(base64_packetset_hash);
 						}
 					}
 					if (!ps->complete) break;
@@ -269,14 +299,19 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 	unsigned int sent_ct = 0;
 
 	int message_start = 0;
+	int receipt_counter = 0;
 	for (int c = 0; c < ps->chunks_ct; c++) {
+		if (receipt_counter % 5 == 0) {
+			packetset_send_receipts(true);
+		}
+		receipt_counter++;
 		if (ps->chunks_received_ct[c] > 0) {
 			message_start += ps->chunk_size;
 			continue;
 		}
 		sent_ct++;
 		contact_stats_update(con->cs, CSE_CHUNK_SENT);
-
+		
 		if (ps->chunks_sent_ct[c] > 0) {
 			free(ps->chunks[c]);
 		} else {
@@ -316,10 +351,12 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		network_packet_destroy(&np);
 
 		client_send_to(con->address, ps->chunks[c], ps->chunks_length[c]);
+		packetset_packet_limiter();
 		ps->chunks_sent_ct[c]++;
 		ps->transmission_latest_sent = time(nullptr);
 
 		message_start += ps->chunk_size;
+		break;
 	}
 	if (sent_ct == 0) {
 		int total_len = 0;

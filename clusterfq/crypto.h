@@ -54,8 +54,8 @@ extern unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_
 
 /* ENCODE/DECODE */
 
-char* crypto_base64_encode(unsigned char* to_encode, size_t length);
-unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length);
+char* crypto_base64_encode(unsigned char* to_encode, size_t length, bool slash_to_underscore = false);
+unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, bool underscore_to_slash = false);
 
 /* UTIL */
 

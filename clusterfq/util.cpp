@@ -253,7 +253,9 @@ void util_file_get_all_names_inner(vector<string>* filenames, string fname, time
 	if (timerange_end > 0 && time > timerange_end) {
 		take_file = false;
 	}
-	if (take_file) filenames->push_back(fname);
+	if (take_file) {
+		filenames->push_back(fname);
+	}
 }
 
 vector<string> util_file_get_all_names(const string path, time_t timerange_start, time_t timerange_end) {
@@ -279,7 +281,7 @@ vector<string> util_file_get_all_names(const string path, time_t timerange_start
 	struct dirent* ent;
 	if ((dir = opendir(path.c_str())) != NULL) {
 		while ((ent = readdir(dir)) != NULL) {
-			if (strstr(ent->d_name, "..") == nullptr && strstr(ent->d_name, ".") == nullptr) {
+			if (strstr(ent->d_name, "..") != ent->d_name && strstr(ent->d_name, ".") != ent->d_name) {
 				string fname(ent->d_name);
 				util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
 			}
