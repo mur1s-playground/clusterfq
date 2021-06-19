@@ -30,9 +30,9 @@ void socket_interface_static_init(int port) {
 	network_tcp_socket_server_listen(&socket_interface_static.tcp_server);
 }
 
-const char* HTTP_RESPONSE_200               = "HTTP/1.1 200 OK\n";
-const char* HTTP_RESPONSE_404               = "HTTP/1.1 404 Not found\n";
-const char* HTTP_RESPONSE_501               = "HTTP/1.1 501 Not implemented\n";
+const char* HTTP_RESPONSE_200 = "HTTP/1.1 200 OK\n";
+const char* HTTP_RESPONSE_404 = "HTTP/1.1 404 Not found\n";
+const char* HTTP_RESPONSE_501 = "HTTP/1.1 501 Not implemented\n";
 const char* HTTP_RESPONSE_SERVER            = "Server: clusterfq\n";
 const char* HTTP_RESPONSE_CONTENT_TYPE_JSON = "Content-Type: application/json\n";
 const char* HTTP_RESPONSE_CONNECTION_CLOSED = "Connection: closed\n";
@@ -82,9 +82,7 @@ void socket_interface_process_client(void* param) {
     vector<string> request = vector<string>();
 
     while (client->state != NS_ERROR) {
-        bool is_get = false;
-        bool is_post = false;
-        bool is_options = false;
+        enum socket_interface_request_type sirt = SIRT_GET;
 
         unsigned int out_len = 0;
         network_socket_read(client, &buffer, 1, nullptr, &out_len);
@@ -101,7 +99,7 @@ void socket_interface_process_client(void* param) {
 
             if (line_len == 2) {
                 string request_url("/");
-                string request_file("");
+                vector<string> request_path = vector<string>();
                 vector<string> params = vector<string>();
 
                 stringstream post_content;
@@ -115,7 +113,8 @@ void socket_interface_process_client(void* param) {
                         request_url = req_0_splt[1];
 
                         vector<string> url_param_split = util_split(request_url, "?");
-                        request_file = url_param_split[0];
+                        request_path = util_split(url_param_split[0].c_str(), "/");
+                        request_path.erase(request_path.begin());
 
                         if (url_param_split.size() > 1) {
                             params = util_split(url_param_split[1], "&");
@@ -124,9 +123,9 @@ void socket_interface_process_client(void* param) {
 
                     const char *req_0 = request[0].c_str();
                     if (strstr(req_0, "GET") == req_0) {
-                        is_get = true;
+                        sirt = SIRT_GET;
                     } else if (strstr(req_0, "POST") == req_0) {
-                        is_post = true;
+                        sirt = SIRT_POST;
                         
                         int content_length = 0;
                         for (int i = 1; i < request.size(); i++) {
@@ -138,60 +137,40 @@ void socket_interface_process_client(void* param) {
                         }
 
                         if (content_length > 0) {
-                            std::cout << content_length << "\n";
                             for (int cc = 0; cc < content_length; cc++) {
                                 network_socket_read(client, &buffer, 1, nullptr, &out_len);
                                 post_content << buffer;
                             }
                         }
                     } else if (strstr(req_0, "OPTIONS") == req_0) {
-                        is_options = true;
+                        sirt = SIRT_OPTIONS;
                     }
                 }
 
                 string content = "{ }\n";
 
-                if (is_get) {
-                    if (strstr(request_file.c_str(), "identities_list") != nullptr) {
-                        content = identities_list();
-                        response << HTTP_RESPONSE_200;
-                    } else {
-                        response << HTTP_RESPONSE_404;
+                char** status_code = (char **)&HTTP_RESPONSE_501;
+                if (request_path.size() > 0) {
+                    const char* rp_0 = request_path[0].c_str();
+                    string pc_s = post_content.str();
+                    if (strstr(rp_0, "identity") == rp_0) {
+                        content = identity_interface(sirt, &request_path, &params, pc_s, status_code);
                     }
-                } else if (is_post) {
-                    content = "{ }\n";
-
-                    if (strstr(request_file.c_str(), "identities_load") != nullptr) {
-                        identities_load();
-                        response << HTTP_RESPONSE_200;
-                    } else if (strstr(request_file.c_str(), "identity_create") != nullptr) {
-                        string name = http_request_get_param(&params, "name");
-                        if (name.length() > 0) {
-                            struct identity i;
-                            identity_create(&i, name);
-                            identities.push_back(i);
-                        }
-                        response << HTTP_RESPONSE_200;
-                    } else {
-                        response << HTTP_RESPONSE_404;
-                    }
-                } else if (is_options) {
-                    response << HTTP_RESPONSE_200;
-                } else {
-                    response << HTTP_RESPONSE_501;
                 }
-
+                response << *status_code;
                 response << http_response_date_now();
                 response << HTTP_RESPONSE_CORS;
-                if (!is_options) response << HTTP_RESPONSE_CONTENT_TYPE_JSON;
-                if (is_options) {
-                    response << "Access-Control-Allow-Headers: Content-Type\n";
-                    response << "Accept-Encoding: identity\n";
+                if (sirt == SIRT_OPTIONS) {
+                    response << content;
+                } else {
+                    response << HTTP_RESPONSE_CONTENT_TYPE_JSON;
+                    response << "Content-Length: " << content.length() << "\n";
                 }
-                response << "Content-Length: " << content.length() << "\n";
                 response << HTTP_RESPONSE_CONNECTION_CLOSED;
                 response << "\n";
-                response << content;
+                if (sirt != SIRT_OPTIONS) {
+                    response << content;
+                }
 
                 std::cout << response.str();
 

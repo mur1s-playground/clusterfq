@@ -5,6 +5,7 @@
 		<script type="text/javascript" src="js/messagebox.js"></script>
 		<script type="text/javascript" src="js/db.js"></script>
 		<script type="text/javascript" src="js/widget.js"></script>
+		<script type="text/javascript" src="js/widgets/contacts.js"></script>
 		<script type="text/javascript" src="js/widgets/identities.js"></script>
 	</head>
 	<body>
@@ -18,11 +19,13 @@
 		var messagebox = new MessageBox("main");
         var db = new DB("Main", messagebox);
 		
-		var identities = new Identities(db, null);
+		var contacts = new Contacts(db, null);
+		var identities = new Identities(db, [contacts]);
 		
 		app.component_add(base_element, messagebox);
 		app.component_add(base_element, db);
 		app.component_add(base_element, identities);
+		app.component_add(base_element, contacts);
 
         function main_loop() {
             app.update();

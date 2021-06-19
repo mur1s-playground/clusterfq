@@ -23,6 +23,8 @@ var DB = function(db_name, message_box) {
 		var http = new XMLHttpRequest();
 		http.addEventListener("load", callback);
 		http.open("POST", this.server_url + url);
+		http.setRequestHeader("Content-Type", "application/json");
+		//http.setRequestHeader("Content-Length", json.length);
 		http.send(json);
 	}
 		

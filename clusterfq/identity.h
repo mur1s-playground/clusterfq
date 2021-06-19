@@ -9,7 +9,7 @@
 
 #include "contact.h"
 #include "group.h"
-
+#include "socket_interface.h"
 
 using namespace std;
 
@@ -46,5 +46,7 @@ string identities_list();
 struct identity* identity_get(unsigned int id);
 
 void identity_contact_add(unsigned int id, struct contact *c);
-void identity_share(unsigned int id, string name_to);
-void identity_contact_list(unsigned int id);
+string identity_share(unsigned int id, string name_to);
+string identity_contact_list(unsigned int id);
+
+string identity_interface(enum socket_interface_request_type sirt, vector<string> *request_path, vector<string> *request_params, string post_content, char **status_code);

@@ -265,11 +265,6 @@ string identities_list() {
 			result << ",";
 		}
 		result << "\n";
-		/*
-		for (int k = 0; k < identities[i].keys.size(); k++) {
-			crypto_key_dump(&identities[i].keys[k]);
-		}
-		*/
 	}
 	result << "\t]\n";
 	result << "}\n";
@@ -314,15 +309,30 @@ void identity_contact_add(unsigned int id, struct contact* c) {
 	}
 }
 
-void identity_share(unsigned int id, string name_to) {
-	std::cout << std::endl;
+string identity_share(unsigned int id, string name_to) {
+	stringstream result;
+
+	result << "{\n";
+	result << "\t\"identity_id\": " << id << ",\n";
+	result << "\t\"name_to\": \"" << name_to << "\",\n";
+	result << "\t\"identity_share\": {\n";
+
 	struct identity* i = identity_get(id);
 	if (i != nullptr) {
 		string address_rev = address_factory_get_unique();
-		std::cout << i->name << std::endl;
-		std::cout << i->keys[i->keys.size() - 1].public_key << std::endl;
-		std::cout << address_rev << std::endl;
 
+		result << "\t\t\"name\": \"" << i->name << "\",\n";
+		result << "\t\t\"pubkey\": \"";
+		for (int l = 0; l < i->keys[i->keys.size() - 1].public_key_len - 1; l++) {
+			if (i->keys[i->keys.size() - 1].public_key[l] == '\n') {
+				result << "\\n";
+			} else {
+				result << i->keys[i->keys.size() - 1].public_key[l];
+			}
+		}
+		result << "\",\n";
+		result << "\t\t\"address\": \"" << address_rev << "\"\n";
+		
 		struct contact c;
 
 		stringstream base_dir;
@@ -350,16 +360,95 @@ void identity_share(unsigned int id, string name_to) {
 		address_factory_add_address(address_rev, AFST_CONTACT, id, c.id);
 		i->contacts.push_back(c);
 	}
-	std::cout << "/------------------/" << std::endl;
+	result << "\t}\n";
+	result << "}\n";
+	string res = result.str();
+	return res;
 }
 
-void identity_contact_list(unsigned int id) {
-	std::cout << std::endl;
+string identity_contact_list(unsigned int id) {
+	stringstream result;
 	struct identity* i = identity_get(id);
+	result << "{\n";
+	result << "\t\"identity_id\": " << id << ",\n";
+	result << "\t\"contacts\": [\n";
+
 	if (i != nullptr) {
 		for (int c = 0; c < i->contacts.size(); c++) {
-			contact_dump(&i->contacts[c]);
+			result << "\t\t{\n";
+			result << "\t\t\t\"id\": " << i->contacts[c].id << ",\n";
+			result << "\t\t\t\"name\": \"" << i->contacts[c].name << "\",\n";
+
+			tm* gmtm = gmtime(&i->contacts[c].cs->last_seen);
+
+			string gmt(asctime(gmtm));
+			gmt = util_trim(gmt, "\r\n\t ");
+
+			result << "\t\t\t\"last_seen\": \"" << gmt << " UTC" << "\"\n";
+			result << "\t\t}";
+			if (c + 1 < i->contacts.size()) {
+				result << ",";
+			}
+			result << "\n";
+			//contact_dump(&i->contacts[c]);
 		}
 	}
-	std::cout << "/------------------/" << std::endl;
+
+	result << "\t]";
+	result << "}\n";
+	string res = result.str();
+	return res;
+}
+
+string identity_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+	string content = "{ }";
+	const char* request_action = nullptr;
+	if (request_path->size() > 1) {
+		request_action = (*request_path)[1].c_str();
+
+		if (sirt == SIRT_GET) {
+			if (strstr(request_action, "list") == request_action) {
+				content = identities_list();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "contact_list") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				content = identity_contact_list(identity_id);
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
+		} else if (sirt == SIRT_POST) {
+			if (strstr(request_action, "load_all") == request_action) {
+				identities_load();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "create") == request_action) {
+				string name = http_request_get_param(request_params, "name");
+				if (name.length() > 0) {
+					struct identity i;
+					identity_create(&i, name);
+					identities.push_back(i);
+				}
+			} else if (strstr(request_action, "contact_add") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				string name = http_request_get_param(request_params, "name");
+				string address = http_request_get_param(request_params, "address");
+				string pubkey = post_content;
+				*status_code = (char*)HTTP_RESPONSE_200;
+				struct contact c;
+				contact_create(&c, name, pubkey, address);
+				identity_contact_add(identity_id, &c);
+			} else if (strstr(request_action, "share") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				string name = http_request_get_param(request_params, "name");
+				content = identity_share(identity_id, name);
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
+		} else if (sirt == SIRT_OPTIONS) {
+			content = "Access-Control-Allow-Headers: Content-Type\n";
+			*status_code = (char*)HTTP_RESPONSE_200;
+		}
+	}
+	return content;
 }
