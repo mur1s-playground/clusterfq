@@ -1,0 +1,35 @@
+<html>
+	<head>
+		<title>clusterfq</title>
+		<script type="text/javascript" src="js/app.js"></script>
+		<script type="text/javascript" src="js/messagebox.js"></script>
+		<script type="text/javascript" src="js/db.js"></script>
+		<script type="text/javascript" src="js/widget.js"></script>
+		<script type="text/javascript" src="js/widgets/identities.js"></script>
+	</head>
+	<body>
+	<div id="app"></div>
+	
+	<script type="text/javascript">
+		var base_element = document.getElementById("app");
+        
+		var app = new App(base_element);
+		
+		var messagebox = new MessageBox("main");
+        var db = new DB("Main", messagebox);
+		
+		var identities = new Identities(db, null);
+		
+		app.component_add(base_element, messagebox);
+		app.component_add(base_element, db);
+		app.component_add(base_element, identities);
+
+        function main_loop() {
+            app.update();
+            requestAnimationFrame(main_loop);
+        }
+
+        requestAnimationFrame(main_loop);
+	</script>
+	</body>
+</html>

@@ -87,13 +87,13 @@ void message_send_session_key(struct identity* i, struct contact* c, bool prepen
 	mm->contact_id = c->id;
 	mm->packetset_id = UINT_MAX;
 
-	mutex_wait_for(&c->outgoing_messages_lock);
+	//mutex_wait_for(&c->outgoing_messages_lock);
 	mutex_wait_for(&c->session_key_inc_lock);
 	crypto_key_sym_generate(&c->session_key);
 	crypto_key_name_set(&c->session_key, c->name.c_str(), c->name.length());
 	crypto_key_copy(&c->session_key, &c->session_key_inc);
 	mutex_release(&c->session_key_inc_lock);
-	mutex_release(&c->outgoing_messages_lock);
+	//mutex_release(&c->outgoing_messages_lock);
 
 	//PACKET
 							//type		//pubkey							//hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
@@ -109,7 +109,7 @@ void message_send_session_key(struct identity* i, struct contact* c, bool prepen
 	//MSG HASH-ID
 	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
 
-	contact_add_message(c, mm, prepend);
+	contact_add_message(c, mm, prepend, false);
 }
 
 void message_send_new_address(struct identity* i, struct contact* c) {
@@ -169,7 +169,8 @@ void message_send_migrate_key(struct identity* i, struct contact* c) {
 }
 
 void message_check_session_key(struct identity *i, struct contact *c) {
-	if (c->session_key.private_key_len > 0 && time(nullptr) - c->session_established > 60) {
+	mutex_wait_for(&c->outgoing_messages_lock);
+	if (c->session_key.private_key_len > 0 && c->session_key.public_key_len == 0 && time(nullptr) - c->session_established > 60) {
 
 		mutex_wait_for(&c->session_key_inc_lock);
 		c->session_key_inc.private_key_len = 0;
@@ -179,13 +180,11 @@ void message_check_session_key(struct identity *i, struct contact *c) {
 		}
 		mutex_release(&c->session_key_inc_lock);
 
-		mutex_wait_for(&c->outgoing_messages_lock);
 		c->session_key.private_key_len = 0;
 		if (c->session_key.private_key != nullptr) {
 			free(c->session_key.private_key);
 			c->session_key.private_key = nullptr;
 		}
-		mutex_release(&c->outgoing_messages_lock);
 
 		//DROP SESSION
 		struct message_meta* mm = new struct message_meta();
@@ -214,6 +213,7 @@ void message_check_session_key(struct identity *i, struct contact *c) {
 		//ESTABLISH SESSION KEY
 		message_send_session_key(i, c);
 	}
+	mutex_release(&c->outgoing_messages_lock);
 }
 
 void message_check_establish_contact(struct identity *i, struct contact *c) {

@@ -13,6 +13,7 @@
 #include "util.h"
 #include "message.h"
 #include "clusterfq.h"
+#include "socket_interface.h"
 
 #include <string>
 #include <vector>
@@ -47,11 +48,15 @@ int main(int argc, char **argv) {
     client_init();
     /* ----------- */
 
+    socket_interface_static_init(8080);
+    socket_interface_listen_loop();
+
     /* START SHELL */
-    thread_create(&main_thread_pool, (void *)&shell_loop, nullptr);
+    //thread_create(&main_thread_pool, (void *)&shell_loop, nullptr);
     /* ----------- */
 
     /* PROCESS SHELL COMMANDS */
+    /*
     while (true) {
         mutex_wait_for(&shell_cmd_lock);
         for (int sc = 0; sc < shell_cmd_queue.size(); sc++) {
@@ -117,6 +122,7 @@ int main(int argc, char **argv) {
         mutex_release(&shell_cmd_lock);
         util_sleep(1000);
     }
+    */
     /* ---------------------- */
 
     /* TEST ENCRYPTION/DECRYPTION */

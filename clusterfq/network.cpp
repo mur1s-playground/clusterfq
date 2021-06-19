@@ -23,13 +23,13 @@ void network_init(struct Network* network) {
 		network->state = NS_ERROR;
 		return;
 	}
-	network->ip6addr->ai_addr = (struct sockaddr*)malloc(sizeof(struct sockaddr));
+	network->ip6addr->ai_addr = (struct sockaddr*)malloc(sizeof(struct sockaddr_in6));
 	if (network->ip6addr->ai_addr == NULL) {
 		fprintf(stderr, "ERROR: Unable to allocate memory: ai_addr\n");
 		network->state = NS_ERROR;
 		return;
 	}
-	memset(network->ip6addr->ai_addr, 0, sizeof(struct sockaddr));
+	memset(network->ip6addr->ai_addr, 0, sizeof(struct sockaddr_in6));
 #else
 	memset(&network->ip6addr, 0, sizeof(network->ip6addr));
 #endif
@@ -175,6 +175,7 @@ void network_socket_read(struct Network* network, void* packet, size_t size, cha
 #ifdef _WIN32
 	if (dst_address == nullptr) {
 		ret = recvfrom(network->socket, (char*)packet, size, 0, (struct sockaddr*)&network->ip6addr->ai_addr, (int*)&network->ip6addr->ai_addrlen);
+		*out_len = ret;
 	} else {
 		char ControlBuffer[1024];
 		WSABUF WSABuf;

@@ -66,6 +66,9 @@
     <ClCompile Include="contact_stats.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="socket_interface.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="address_factory.h">
@@ -117,6 +120,9 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="contact_stats.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="socket_interface.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

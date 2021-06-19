@@ -160,6 +160,7 @@
     <ClCompile Include="packetset.cpp" />
     <ClCompile Include="server.cpp" />
     <ClCompile Include="shell.cpp" />
+    <ClCompile Include="socket_interface.cpp" />
     <ClCompile Include="thread.cpp" />
     <ClCompile Include="util.cpp" />
   </ItemGroup>
@@ -179,6 +180,7 @@
     <ClInclude Include="packetset.h" />
     <ClInclude Include="server.h" />
     <ClInclude Include="shell.h" />
+    <ClInclude Include="socket_interface.h" />
     <ClInclude Include="thread.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>

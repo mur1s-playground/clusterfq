@@ -41,7 +41,7 @@ void identity_save_keys(struct identity* i, string base_dir);
 void identity_load_keys(struct identity* i, string base_dir);
 
 void identities_load();
-void identities_list();
+string identities_list();
 
 struct identity* identity_get(unsigned int id);
 

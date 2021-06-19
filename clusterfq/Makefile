@@ -1,5 +1,5 @@
-all: clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o shell.o thread.o util.o
-	g++ -std=c++11 clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o shell.o thread.o util.o -lssl -lcrypto -lpthread -o clusterfq
+all: clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o shell.o socket_interface.o thread.o util.o
+	g++ -std=c++11 clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o shell.o socket_interface.o thread.o util.o -lssl -lcrypto -lpthread -o clusterfq
 
 clusterfq.o:
 	g++ -std=c++11 -c clusterfq.cpp
@@ -45,6 +45,9 @@ server.o:
 	
 shell.o:
 	g++ -std=c++11 -c shell.cpp
+
+socket_interface.o:
+	g++ -std=c++11 -c socket_interface.cpp
 	
 thread.o:
 	g++ -std=c++11 -c thread.cpp

@@ -348,14 +348,14 @@ void contact_dump(struct contact* c) {
 	crypto_key_dump(&c->session_key_inc);
 }
 
-void contact_add_message(struct contact* c, struct message_meta* mm, bool prepend) {
-	mutex_wait_for(&c->outgoing_messages_lock);
+void contact_add_message(struct contact* c, struct message_meta* mm, bool prepend, bool lock_out) {
+	if (lock_out) mutex_wait_for(&c->outgoing_messages_lock);
 	if (prepend) {
 		c->outgoing_messages.insert(c->outgoing_messages.begin(), mm);
 	} else {
 		c->outgoing_messages.push_back(mm);
 	}
-	mutex_release(&c->outgoing_messages_lock);
+	if (lock_out) mutex_release(&c->outgoing_messages_lock);
 	mutex_wait_for(&contact_message_pending_lock);
 	bool found = false;
 	for (int mp = 0; mp < contact_message_pending.size(); mp++) {
@@ -540,36 +540,33 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					int pubkey_len = 0;
 					char* pubkey = network_packet_read_str(npc, &pubkey_len);
 
+					mutex_wait_for(&c->outgoing_messages_lock);
+					
 					if (c->session_key.private_key_len == 0) {
 						message_send_session_key(i, c);
 						memcpy(c->session_key.public_key, pubkey, pubkey_len);
-
-						mutex_wait_for(&c->outgoing_messages_lock);
 
 						crypto_key_sym_finalise(&c->session_key);
 						mutex_wait_for(&c->session_key_inc_lock);
 						crypto_key_copy(&c->session_key, &c->session_key_inc);
 						mutex_release(&c->session_key_inc_lock);
 						c->session_established = time(nullptr);
-
-						mutex_release(&c->outgoing_messages_lock);
 
 						contact_sessionkey_save(c, i->id);
 					} else if (c->session_key.public_key_len > 0) {
 						memcpy(c->session_key.public_key, pubkey, pubkey_len);
 
-						mutex_wait_for(&c->outgoing_messages_lock);
-
 						crypto_key_sym_finalise(&c->session_key);
 						mutex_wait_for(&c->session_key_inc_lock);
 						crypto_key_copy(&c->session_key, &c->session_key_inc);
 						mutex_release(&c->session_key_inc_lock);
 						c->session_established = time(nullptr);
 
-						mutex_release(&c->outgoing_messages_lock);
-
 						contact_sessionkey_save(c, i->id);
 					}
+
+					mutex_release(&c->outgoing_messages_lock);
+
 					free(pubkey);
 					if (chunks_total == 1) {
 						message_send_receipt(i, c, ps, hash_id, chunk_id);
@@ -647,8 +644,6 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						util_sleep(1000);
 					} while (util_path_exists(filename_l.str()));
 					util_file_write_line(filename_l.str(), string(message));
-
-					std::cout << "saving file: " << filename_l.str();
 
 					free(base64_packetset_hash);
 					free(message);

@@ -83,7 +83,7 @@ void contact_stats_load(struct contact* c, string path);
 
 void contact_dump(struct contact* c);
 
-void contact_add_message(struct contact* c, struct message_meta *mm, bool prepend = false);
+void contact_add_message(struct contact* c, struct message_meta *mm, bool prepend = false, bool lock_out = true);
 bool contact_process_message(struct identity *i, struct contact *c, unsigned char *packet_buffer_packet, unsigned int packet_len);
 
 void contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from = 0, time_t to = 0);

@@ -232,17 +232,49 @@ void identities_load() {
 	}
 }
 
-void identities_list() {
-	std::cout << std::endl;
+string identities_list() {
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identities\": [\n";
 	for (int i = 0; i < identities.size(); i++) {
-		std::cout << "/------------------/" << std::endl;
-		std::cout << identities[i].id << std::endl;
-		std::cout << identities[i].name << std::endl;
+		result << "\t\t{\n";
+		result << "\t\t\t\"id\": "		<< identities[i].id		<< ",\n";
+		result << "\t\t\t\"name\": \""	<< identities[i].name	<< "\",\n";
+		result << "\t\t\t\"keys\": [\n";
+		for (int k = 0; k < identities[i].keys.size(); k++) {
+			result << "\t\t\t\t{\n";
+			result << "\t\t\t\t\t\"pubkey\": \""; 
+			for (int l = 0; l < identities[i].keys[k].public_key_len-1; l++) {
+				if (identities[i].keys[k].public_key[l] == '\n') {
+					result << "\\n";
+				} else {
+					result << identities[i].keys[k].public_key[l];
+				}
+				
+			}
+			result << "\"\n";
+			result << "\t\t\t\t}";
+			if (k + 1 < identities[i].keys.size()) {
+				result << ",";
+			}
+			result << "\n";
+		}
+		result << "\t\t\t]\n";
+		result << "\t\t}";
+		if (i + 1 < identities.size()) {
+			result << ",";
+		}
+		result << "\n";
+		/*
 		for (int k = 0; k < identities[i].keys.size(); k++) {
 			crypto_key_dump(&identities[i].keys[k]);
 		}
+		*/
 	}
-	std::cout << "/------------------/" << std::endl;
+	result << "\t]\n";
+	result << "}\n";
+	string res = result.str();
+	return res;
 }
 
 struct identity *identity_get(unsigned int id) {
