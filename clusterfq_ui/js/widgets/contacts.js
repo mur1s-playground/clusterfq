@@ -100,19 +100,31 @@ var Contacts = function(db, change_dependencies) {
 				if (this.contacts_by_identity_id.hasOwnProperty(element)) {
 					var el = this.contacts_by_identity_id[element];
 					if (el["identity_id"] == this.selected_identity_id) {
-					el["contacts"].forEach(elem => {
+					for (var i_id in el["contacts"]) {
+						if (!el["contacts"].hasOwnProperty(i_id)) continue;
+						var elem = el["contacts"][i_id];
 						var contact = document.createElement("div");
 						contact.obj = this;
 						contact.identity_id = el["identity_id"];
 						contact.contact_id = elem["id"];
+						contact.style.display = "flex";
+						contact.style.justifyContent = "space-between";
+						
+						var name = document.createElement("span");
+						name.innerHTML = elem["name"];
+						name.style.width = "50%";
+						name.style.textAlign = "center";
+						
 						if (elem["id"] == this.selected_contact_id) {
-							contact.style.backgroundColor = "#00ff00";
-							contact.style.color = "#ffffff";
+							name.style.backgroundColor = "#00ff00";
+							name.style.color = "#ffffff";
 						} else {
-							contact.style.backgroundColor = "#ffffff";
-							contact.style.color = "#000000";
+							name.style.backgroundColor = "#ffffff";
+							name.style.color = "#000000";
 						}
-						contact.innerHTML = elem["name"];
+
+						contact.appendChild(name);
+						
 						contact.id = this.widget.name + "_contact_" + elem["id"];
 						contact.onclick = function() {
 							this.obj.selected_contact_id = this.contact_id;
@@ -120,9 +132,55 @@ var Contacts = function(db, change_dependencies) {
 							this.obj.changed_f();
 						};
 						
+						var sending = document.createElement("span");
+						sending.padding = "5px";
+						sending.margin = "5px";
+						sending.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_sending";
+						sending.appendChild(document.createTextNode("\u2197"));
+						contact.appendChild(sending);
+				
+						var receiving = document.createElement("span");
+						receiving.padding = "5px";
+						receiving.margin = "5px";
+						receiving.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_receiving";
+						receiving.appendChild(document.createTextNode("\u2199"));
+						contact.appendChild(receiving);
+				
+						var received = document.createElement("span");
+						received.padding = "5px";
+						received.margin = "5px";
+						received.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_received";
+						received.appendChild(document.createTextNode("\u2731"))
+						received.style.visibility = "hidden";
+						contact.appendChild(received);
+
+						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_OUT_PENDING") && 
+							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_OUT_PENDING"] === true) {
+								sending.style.backgroundColor = "#0000ff";
+								sending.style.color = "#ffffff";
+						} else {
+								sending.style.backgroundColor = "#ffffff";
+								sending.style.color = "#000000";
+						}
+
+						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_IN_PENDING") &&
+							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_PENDING"] === true) {
+								receiving.style.backgroundColor = "#00ff00";
+						} else {
+								receiving.style.backgroundColor = "#ffffff";
+						}
+
+						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_IN_COMPLETE") &&
+							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_COMPLETE"] === true) {
+								if (contact.contact_id == this.selected_contact_id) {
+									contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_COMPLETE"] = false;
+								} else {
+									received.style.visibility = "visible";
+								}
+						}
 						
 						this.contacts_view.appendChild(contact);
-					});
+					};
 				}		
 				}
 			}
@@ -154,7 +212,25 @@ var Contacts = function(db, change_dependencies) {
 	
 	this.on_contact_list_receive = function() {
 		var json_res = JSON.parse(this.responseText);
-		contacts.contacts_by_identity_id[json_res["identity_id"]] = json_res;
+
+		if (!contacts.contacts_by_identity_id.hasOwnProperty(json_res["identity_id"])) {
+			contacts.contacts_by_identity_id[json_res["identity_id"]] = {};
+			contacts.contacts_by_identity_id[json_res["identity_id"]]["identity_id"] = json_res["identity_id"];
+			contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"] = {};
+		}
+
+		json_res["contacts"].forEach(element => {
+			var c_id = element["id"];
+			if (!contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"].hasOwnProperty(c_id)) {
+				contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][c_id] = element;
+			} else {
+				for (var prop in element) {
+					if (element.hasOwnProperty(prop)) {
+						contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][c_id][prop] = element[prop];
+					}
+				}
+			}
+		});
 	}
 
 	this.update = function() {
@@ -164,9 +240,11 @@ var Contacts = function(db, change_dependencies) {
 			this.update_add_view();
 			
 			if (identities.identities_json != null) {
-				identities.identities_json["identities"].forEach(element => {
+				for (var i_id in identities.identities_json["identities"]) {
+					if (!identities.identities_json["identities"].hasOwnProperty(i_id)) continue;
+					var element = identities.identities_json["identities"][i_id];
 					this.db.query_get("identity/contact_list?identity_id=" + element["id"], contacts.on_contact_list_receive);
-				});
+				};
 			}
 			
 			this.update_contacts_view();

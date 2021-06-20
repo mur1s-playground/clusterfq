@@ -366,6 +366,14 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 	}
 	if (!found) {
 		contact_message_pending.push_back(c);
+
+		packetset_state_info psi;
+		psi.identity_id = mm->identity_id;
+		psi.contact_id = c->id;
+		psi.ps = PS_OUT_CREATED;
+		psi.mt = mm->mt;
+
+		packetset_static_add_state_info(psi);
 	}
 	mutex_release(&contact_message_pending_lock);
 }
@@ -468,6 +476,15 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 		ps_.transmission_last_receipt = time(nullptr);
 		ps_.verified[chunk_id] = verified;
 		c->incoming_packetsets.insert(pair<string, struct packetset>(string(hash_id), ps_));
+
+		packetset_state_info psi;
+		psi.identity_id = i->id;
+		psi.contact_id = c->id;
+		psi.ps = PS_IN_PENDING;
+		psi.mt = MT_UNKNOWN;
+
+		packetset_static_add_state_info(psi);
+		
 		if (chunks_total == 1) {
 			ip = c->incoming_packetsets.find(string(hash_id));
 			ps = &ip->second;
@@ -722,6 +739,15 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						c->incoming_packetsets.erase(string(hash_id));
 						mutex_release(&c->outgoing_messages_lock);
 				}
+			}
+			if (ps->processed) {
+				packetset_state_info psi;
+				psi.identity_id = i->id;
+				psi.contact_id = c->id;
+				psi.ps = PS_IN_COMPLETE;
+				psi.mt = mt;
+
+				packetset_static_add_state_info(psi);
 			}
 			network_packet_destroy(npc);
 		}

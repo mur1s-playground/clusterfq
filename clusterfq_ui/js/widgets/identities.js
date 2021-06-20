@@ -23,7 +23,6 @@ var Identities = function(db, change_dependencies) {
 	this.elem = this.widget.elem;
 	this.elem.style.display = "none";
 	
-	//Routine Menu
 	this.menu = document.createElement("div");
 
 	this.add_btn = document.createElement("button");
@@ -123,7 +122,6 @@ var Identities = function(db, change_dependencies) {
 		this.share_view.appendChild(this.add_address);
 		
 		this.add_exec = document.createElement("button");
-		//this.add_exec.obj = this;
 		this.add_exec.widget_name = this.widget.name;
 		this.add_exec.innerHTML = "&#10003;";
 		this.add_exec.onclick = function() {
@@ -144,34 +142,92 @@ var Identities = function(db, change_dependencies) {
 		this.identities_view.innerHTML = "";
 		
 		if (identities.identities_json != null) {
-			identities.identities_json["identities"].forEach(element => {
+			for (var k in identities.identities_json["identities"]) {
+				if (!identities.identities_json["identities"].hasOwnProperty(k)) continue;
+				var element = identities.identities_json["identities"][k];
 				var identity = document.createElement("div");
 				identity.id = this.widget.name + "_identity_" + element["id"];
 				identity.obj = this;
 				identity.identity_id = element["id"];
-				identity.innerHTML = element["name"];
-				identity.style.display = "inline";
+				identity.style.display = "flex";
+				identity.style.justifyContent = "space-between";
+				
+				var name = document.createElement("span");
+				name.innerHTML = element["name"];
+				name.style.width = "50%";
+				name.style.textAlign = "center";
+				name.style.borderRadius = "5px";
+				name.style.padding = "5px";
+				name.style.margin = "5px";
+				
 				if (element["id"] == this.identity_selected_id) {
-					identity.style.backgroundColor = "#0000ff";
-					identity.style.color = "#ffffff";
+					name.style.backgroundColor = "#0000ff";
+					name.style.color = "#ffffff";
 				} else {
-					identity.style.backgroundColor = "#ffffff";
-					identity.style.color = "#000000";
+					name.style.backgroundColor = "#ffffff";
+					name.style.color = "#000000";
 				}
+				identity.appendChild(name);
+				
 				identity.onclick = function() {
 					this.obj.identity_selected_id = this.identity_id;
 					contacts.update_selected(this.identity_id);
 					this.obj.changed_f();
 				};
 				
-				this.identities_view.appendChild(identity);
+				var sending = document.createElement("span");
+				sending.padding = "5px";
+				sending.margin = "5px";
+				sending.id = this.widget.name + "_identity_" + element["id"] + "_sending";
+				sending.appendChild(document.createTextNode("\u2197"));
+				identity.appendChild(sending);
+				
+				var receiving = document.createElement("span");
+				receiving.padding = "5px";
+				receiving.margin = "5px";
+				receiving.id = this.widget.name + "_identity_" + element["id"] + "_receiving";
+				receiving.appendChild(document.createTextNode("\u2199"));
+				identity.appendChild(receiving);
+				
+				var received = document.createElement("span");
+				received.padding = "5px";
+				received.margin = "5px";
+				received.id =  this.widget.name + "_identity_" + element["id"] + "_received";
+				received.appendChild(document.createTextNode("\u2731"))
+				received.style.visibility = "hidden";
+				identity.appendChild(received);
+				
+				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_OUT_PENDING") &&
+					identities.identities_json["identities"][element["id"]]["PS_OUT_PENDING"] === true) {
+						sending.style.backgroundColor = "#0000ff";
+						sending.style.color = "#ffffff";
+				} else {
+						sending.style.backgroundColor = "#ffffff";
+						sending.style.color = "#000000";
+				}
+				
+				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_IN_PENDING") &&
+					identities.identities_json["identities"][element["id"]]["PS_IN_PENDING"] === true) {
+						receiving.style.backgroundColor = "#00ff00";
+				} else {
+						receiving.style.backgroundColor = "#ffffff";
+				}
+
+				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_IN_COMPLETE") &&
+					identities.identities_json["identities"][element["id"]]["PS_IN_COMPLETE"] === true) {
+						if (element["id"] == this.identity_selected_id) {
+							identities.identities_json["identities"][element["id"]]["PS_IN_COMPLETE"] = false;
+						} else {
+							received.style.visibility = "visible";
+						}
+				}
 				
 				var share_to_name = document.createElement("input");
 				share_to_name.id = this.widget.name + "_identity_share_" + element["id"] + "_share_to_name";
 				share_to_name.type = "text";
 				share_to_name.placeholder = "Share to name";
 				share_to_name.style.display = "none";
-				this.identities_view.appendChild(share_to_name);
+				identity.appendChild(share_to_name);
 				
 				var share_to_name_btn = document.createElement("button");
 				share_to_name_btn.id = this.widget.name + "_identity_share_" + element["id"] + "_share_to_name_btn";
@@ -189,7 +245,7 @@ var Identities = function(db, change_dependencies) {
 					var share_btn = document.getElementById(this.base_name);
 					share_btn.style.display = "inline";
 				}
-				this.identities_view.appendChild(share_to_name_btn);
+				identity.appendChild(share_to_name_btn);
 			
 				var share_btn = document.createElement("button");
 				share_btn.id = this.widget.name + "_identity_share_" + element["id"];
@@ -204,10 +260,11 @@ var Identities = function(db, change_dependencies) {
 					share_to_name_btn.style.display = "inline";
 					this.style.display = "none";
 				}
-				this.identities_view.appendChild(share_btn);
-				var br = document.createElement("br");
-				this.identities_view.appendChild(br);
-			});
+				identity.appendChild(share_btn);
+				
+				
+				this.identities_view.appendChild(identity);
+			};
 		}
 		
 		var hr = document.createElement("hr");
@@ -217,11 +274,6 @@ var Identities = function(db, change_dependencies) {
 	
 	this.widget.content.appendChild(this.identities_view);
 	
-	//Routine List
-	//this.routine_list = document.createElement("div");
-	
-	//this.widget.content.appendChild(this.routine_list);
-
 	this.changed = true;
 	
 	this.changed_f = function() {
@@ -245,7 +297,24 @@ var Identities = function(db, change_dependencies) {
 	this.identities_loaded = false;
 	
 	this.on_identities_list_response = function() {
-		identities.identities_json = JSON.parse(this.responseText);
+		var json_res = JSON.parse(this.responseText);
+		if (identities.identities_json == null) {
+			identities.identities_json = {};
+			identities.identities_json["identities"] = {};
+		}
+		for (var elem in json_res["identities"]) {
+			if (json_res["identities"].hasOwnProperty(elem)) {
+				if (!identities.identities_json["identities"].hasOwnProperty(json_res["identities"][elem]["id"])) {
+					identities.identities_json["identities"][json_res["identities"][elem]["id"]] = json_res["identities"][elem];
+				} else {
+					for (var k in json_res["identities"][elem]) {
+						if (json_res["identities"][elem].hasOwnProperty(k)) {
+							identities.identities_json["identities"][json_res["identities"][elem]["id"]][k] = json_res["identities"][elem][k];
+						}
+					}
+				}
+			}
+		}
 		identities.changed_f();
 	}
 	

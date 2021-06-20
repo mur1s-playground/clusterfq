@@ -31,8 +31,43 @@ time_t							packetset_time_2			= 0;
 
 vector<struct message_receipt>	packetset_receipts_out = vector<struct message_receipt>();
 
+struct mutex						packetset_state_info_lock;
+vector<struct packetset_state_info> packetset_state_info_ = vector<struct packetset_state_info>();
+
 void packetset_static_init() {
 	mutex_init(&packetset_loop_lock);
+	mutex_init(&packetset_state_info_lock);
+}
+
+void packetset_static_add_state_info(struct packetset_state_info psi) {
+	mutex_wait_for(&packetset_state_info_lock);
+	packetset_state_info_.push_back(psi);
+	mutex_release(&packetset_state_info_lock);
+}
+
+string packetset_static_get_state_infos() {
+	mutex_wait_for(&packetset_state_info_lock);
+	stringstream result;
+	result << "{\n";
+	result << "\t\"packetset_state_infos\": [\n";
+	for (int psi = 0; psi < packetset_state_info_.size(); psi++) {
+		result << "\t\t{\n";
+		result << "\t\t\"identity_id\": " << packetset_state_info_[psi].identity_id << ",\n";
+		result << "\t\t\"contact_id\": " << packetset_state_info_[psi].contact_id << ",\n";
+		result << "\t\t\"packetset_state_info\": " << packetset_state_info_[psi].ps << ",\n";
+		result << "\t\t\"message_type\": " << packetset_state_info_[psi].mt << "\n";
+		result << "\t\t}";
+		if (psi + 1 < packetset_state_info_.size()) {
+			result << ",";
+		}
+		result << "\n";
+	}
+	result << "\t]\n";
+	result << "}\n";
+	packetset_state_info_.clear();
+	mutex_release(&packetset_state_info_lock);
+	string res = result.str();
+	return res;
 }
 
 void packetset_packet_limiter() {
@@ -79,10 +114,11 @@ void packetset_loop(void* unused) {
 			if (debug_toggle) std::cout << "packset_loop: outgoing_messages_size: " << c->outgoing_messages.size() << std::endl;
 			for (int om = 0; om < c->outgoing_messages.size(); om++) {
 				struct message_meta* mm = c->outgoing_messages[om];
+				struct identity* i = identity_get(mm->identity_id);
 
 				//prepend new session, if the session was dropped, while a message was in queue
 				if (mm->mt == MT_MESSAGE && c->session_key.private_key_len == 0) {
-					struct identity* i = identity_get(mm->identity_id);
+					
 					message_send_session_key(i, c, true);
 					break;
 				}
@@ -98,7 +134,24 @@ void packetset_loop(void* unused) {
 						unsigned int chunks_left = packetset_prepare_send(ps);
 						if (chunks_left > 0) {
 							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
+
+							packetset_state_info psi;
+							psi.identity_id = i->id;
+							psi.contact_id = c->id;
+							psi.ps = PS_OUT_PENDING;
+							psi.mt = ps->mm->mt;
+
+							packetset_static_add_state_info(psi);
+
 							break;
+						} else {
+							packetset_state_info psi;
+							psi.identity_id = i->id;
+							psi.contact_id = c->id;
+							psi.ps = PS_OUT_COMPLETE;
+							psi.mt = ps->mm->mt;
+
+							packetset_static_add_state_info(psi);
 						}
 
 						ps->complete = true;
@@ -394,4 +447,33 @@ void packetset_destroy(struct packetset* ps) {
 	free(ps->chunks_length);
 	free(ps->chunks_received_ct);
 	free(ps->chunks_sent_ct);
+}
+
+string packetset_state() {
+	for (int i = 0; i < identities.size(); i++) {
+
+	}
+}
+
+string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+	string content = "{ }";
+	const char* request_action = nullptr;
+	if (request_path->size() > 1) {
+		request_action = (*request_path)[1].c_str();
+
+		if (sirt == SIRT_GET) {
+			if (strstr(request_action, "poll") == request_action) {
+				content = packetset_static_get_state_infos();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
+		} else if (sirt == SIRT_POST) {
+			*status_code = (char*)HTTP_RESPONSE_404;
+		} else if (sirt == SIRT_OPTIONS) {
+			content = "Access-Control-Allow-Headers: Content-Type\n";
+			*status_code = (char*)HTTP_RESPONSE_200;
+		}
+	}
+	return content;
 }

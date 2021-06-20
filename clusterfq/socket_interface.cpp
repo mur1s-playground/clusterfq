@@ -154,7 +154,9 @@ void socket_interface_process_client(void* param) {
                 if (request_path.size() > 0) {
                     const char* rp_0 = request_path[0].c_str();
                     string pc_s = post_content.str();
-                    if (strstr(rp_0, "identity") == rp_0) {
+                    if (strstr(rp_0, "packetset") == rp_0) {
+                        content = packetset_interface(sirt, &request_path, &params, pc_s, status_code);
+                    } else if (strstr(rp_0, "identity") == rp_0) {
                         content = identity_interface(sirt, &request_path, &params, pc_s, status_code);
                     } else if (strstr(rp_0, "contact") == rp_0) {
                         content = contact_interface(sirt, &request_path, &params, pc_s, status_code);

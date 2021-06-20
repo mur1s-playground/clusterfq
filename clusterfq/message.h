@@ -18,6 +18,7 @@ enum message_type {
 	MT_FILE,
 	MT_RECEIPT,
 	MT_RECEIPT_COMPLETE,
+	MT_UNKNOWN
 };
 
 struct message_receipt {

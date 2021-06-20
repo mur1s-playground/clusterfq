@@ -31,6 +31,26 @@ struct packetset {
 	struct message_meta*	mm;
 };
 
+enum packetset_state {
+	PS_OUT_CREATED,
+	PS_OUT_PENDING,
+	PS_OUT_COMPLETE,
+	PS_IN_PENDING,
+	PS_IN_COMPLETE
+};
+
+struct packetset_state_info {
+	unsigned int identity_id;
+	unsigned int contact_id;
+
+	enum packetset_state ps;
+
+	enum message_type mt;
+};
+
+void packetset_static_add_state_info(struct packetset_state_info psi);
+string packetset_static_get_state_infos();
+
 void packetset_loop(void* unused);
 void packetset_static_init();
 void packetset_loop_start_if_needed();
@@ -43,3 +63,5 @@ unsigned char* packageset_message_get(struct packetset* ps, unsigned int *out_le
 void packetset_destroy(struct packetset* ps);
 
 void packetset_enqueue_receipt(struct message_receipt mr);
+
+string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);
