@@ -734,7 +734,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 	return true;
 }
 
-void contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from, time_t to) {
+string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from, time_t to) {
 	struct identity* id = identity_get(identity_id);
 	struct contact* c = contact_get(&id->contacts, contact_id);
 
@@ -761,41 +761,96 @@ void contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t 
 
 	filenames_in.insert(filenames_in.end(), filenames_out.begin(), filenames_out.end());
 	sort(filenames_in.begin(), filenames_in.end());
-	std::cout << std::endl;
+
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identity_id\": " << identity_id << ",\n";
+	result << "\t\"contact_id\": " << contact_id << ",\n";
+	result << "\t\"chat\": {\n";
+
 	for (int i = 0; i < filenames_in.size(); i++) {
 		vector<string> splt = util_split(filenames_in[i], ":");
 
 		vector<string> t_splt = util_split(splt[0], ".");
 
 		time_t t = stoi(t_splt[0]);
-		tm* gmtm = gmtime(&t);
-		std::cout << asctime(gmtm) << " (";
+
+		result << "\t\t\"" << t_splt[1] << "\": {\n";
+
+		result << "\t\t\t\"time\": " << t << ",\n";
+		result << "\t\t\t\"sender\": \"";
 
 		if (strstr(splt[1].c_str(), "in") != nullptr) {
-			std::cout << c->name;
+			result << c->name;
 		} else {
-			std::cout << id->name;
+			result << id->name;
 		}
-		
-		std::cout << "): ";
+
+		result << "\",\n";
 
 		if (strstr(splt[0].c_str(), ".file.") != nullptr) {
 			//is file
+			result << "\t\t\t\"file\": \"";
+
+			result << splt[1];
+
 			for (int f = 2; f < t_splt.size(); f++) {
-				std::cout << t_splt[f];
-				if (f + 1 < t_splt.size()) std::cout << ".";
+				result << t_splt[f];
+				//std::cout << t_splt[f];
+				if (f + 1 < t_splt.size()) {
+					//std::cout << ".";
+					result << ".";
+				}
 			}
+			result << "\"\n";
 		} else {
 			stringstream fullpath;
 			fullpath << splt[1] << splt[0];
 			vector<string> lines = util_file_read_lines(fullpath.str());
+
+			result << "\t\t\t\"message\": \"";
 			for (int l = 0; l < lines.size(); l++) {
-				if (l > 0) std::cout << std::endl;
-				std::cout << lines[l];
+				if (l > 0) result << "\\n";
+				result << lines[l];
 			}
+			result << "\"\n";
 		}
 
-		std::cout << std::endl;
+		result << "\t\t}";
+		if (i + 1 < filenames_in.size()) {
+			result << ",";
+		}
+		result << "\n";
 	}
-	std::cout << std::endl;
+	result << "\t}\n";
+	result << "}\n";
+	string res = result.str();
+	return res;
+}
+
+string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+	string content = "{ }";
+	const char* request_action = nullptr;
+	if (request_path->size() > 1) {
+		request_action = (*request_path)[1].c_str();
+
+		if (sirt == SIRT_GET) {
+			if (strstr(request_action, "chat") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				time_t time_start = stol(http_request_get_param(request_params, "time_start"));
+				time_t time_end = stol(http_request_get_param(request_params, "time_end"));
+				content = contact_get_chat(identity_id, contact_id, time_start, time_end);
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
+		} else if (sirt == SIRT_POST) {
+			*status_code = (char*)HTTP_RESPONSE_404;
+		} else if (sirt == SIRT_OPTIONS) {
+			content = "Access-Control-Allow-Headers: Content-Type\n";
+			*status_code = (char*)HTTP_RESPONSE_200;
+		}
+	}
+	return content;
 }

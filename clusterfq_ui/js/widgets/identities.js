@@ -5,6 +5,19 @@ var Identities = function(db, change_dependencies) {
 	this.identities_json = null;
 	this.identity_selected_id = -1;
 	
+	this.get_name = function(identity_id) {
+		if (identities.identities_json != null && identities.identities_json.hasOwnProperty("identities")) {
+			for (var idx in identities.identities_json["identities"]) {
+				if (identities.identities_json["identities"].hasOwnProperty(idx)) {
+					if (identities.identities_json["identities"][idx]["id"] == identity_id) {
+						return identities.identities_json["identities"][idx]["name"];
+					}
+				}
+			}
+		}
+		return "";
+	}
+	
 	this.widget = new Widget("Identities");
 
 	this.elem = this.widget.elem;

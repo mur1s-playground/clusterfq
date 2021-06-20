@@ -3,6 +3,7 @@ var Contacts = function(db, change_dependencies) {
 	this.change_dependencies = change_dependencies;
 	
 	this.selected_identity_id = -1;
+	this.selected_contact_id = -1;
 	this.contacts_by_identity_id = {};
 	
 	this.widget = new Widget("Contacts");
@@ -101,10 +102,24 @@ var Contacts = function(db, change_dependencies) {
 					if (el["identity_id"] == this.selected_identity_id) {
 					el["contacts"].forEach(elem => {
 						var contact = document.createElement("div");
+						contact.obj = this;
 						contact.identity_id = el["identity_id"];
 						contact.contact_id = elem["id"];
+						if (elem["id"] == this.selected_contact_id) {
+							contact.style.backgroundColor = "#00ff00";
+							contact.style.color = "#ffffff";
+						} else {
+							contact.style.backgroundColor = "#ffffff";
+							contact.style.color = "#000000";
+						}
 						contact.innerHTML = elem["name"];
 						contact.id = this.widget.name + "_contact_" + elem["id"];
+						contact.onclick = function() {
+							this.obj.selected_contact_id = this.contact_id;
+							chat.update_selected(this.identity_id, this.contact_id);
+							this.obj.changed_f();
+						};
+						
 						
 						this.contacts_view.appendChild(contact);
 					});
@@ -132,6 +147,8 @@ var Contacts = function(db, change_dependencies) {
 	
 	this.update_selected = function(identity_id) {
 		this.selected_identity_id = identity_id;
+		this.selected_contact_id = -1;
+		chat.update_selected(identity_id, -1);
 		this.changed_f();
 	}
 	

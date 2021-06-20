@@ -5,8 +5,10 @@
 		<script type="text/javascript" src="js/messagebox.js"></script>
 		<script type="text/javascript" src="js/db.js"></script>
 		<script type="text/javascript" src="js/widget.js"></script>
+		<script type="text/javascript" src="js/widgets/chat.js"></script>
 		<script type="text/javascript" src="js/widgets/contacts.js"></script>
 		<script type="text/javascript" src="js/widgets/identities.js"></script>
+		<script type="text/javascript" src="js/widgets/messages.js"></script>
 	</head>
 	<body>
 	<div id="app"></div>
@@ -19,13 +21,17 @@
 		var messagebox = new MessageBox("main");
         var db = new DB("Main", messagebox);
 		
-		var contacts = new Contacts(db, null);
+		var messages = new Messages(db, null);
+		var chat = new Chat(db, [messages]);
+		var contacts = new Contacts(db, [chat]);
 		var identities = new Identities(db, [contacts]);
 		
 		app.component_add(base_element, messagebox);
 		app.component_add(base_element, db);
 		app.component_add(base_element, identities);
 		app.component_add(base_element, contacts);
+		app.component_add(base_element, chat);
+		app.component_add(base_element, messages);
 
         function main_loop() {
             app.update();

@@ -10,6 +10,7 @@
 #include "message.h"
 #include "mutex.h"
 #include "identity.h"
+#include "socket_interface.h"
 
 #include "contact_stats.h"
 
@@ -86,4 +87,6 @@ void contact_dump(struct contact* c);
 void contact_add_message(struct contact* c, struct message_meta *mm, bool prepend = false, bool lock_out = true);
 bool contact_process_message(struct identity *i, struct contact *c, unsigned char *packet_buffer_packet, unsigned int packet_len);
 
-void contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from = 0, time_t to = 0);
+string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from = 0, time_t to = 0);
+
+string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);

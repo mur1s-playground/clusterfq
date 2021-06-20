@@ -246,11 +246,11 @@ void util_file_get_all_names_inner(vector<string>* filenames, string fname, time
 	bool take_file = true;
 
 	vector<string> splt = util_split(fname, ".");
-	int time = stoi(splt[0]);
-	if (timerange_start > 0 && time < timerange_start) {
+	time_t time_ = stol(splt[0]);
+	if (timerange_start > 0 && time_ < timerange_start) {
 		take_file = false;
 	}
-	if (timerange_end > 0 && time > timerange_end) {
+	if (timerange_end > 0 && time_ > timerange_end) {
 		take_file = false;
 	}
 	if (take_file) {
@@ -276,6 +276,7 @@ vector<string> util_file_get_all_names(const string path, time_t timerange_start
 			util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
 		}
 	} while (FindNextFileA(h, &data));
+	FindClose(h);
 #else
 	DIR* dir;
 	struct dirent* ent;

@@ -137,6 +137,7 @@ void socket_interface_process_client(void* param) {
                         }
 
                         if (content_length > 0) {
+                            network_socket_read(client, &buffer, 1, nullptr, &out_len);
                             for (int cc = 0; cc < content_length; cc++) {
                                 network_socket_read(client, &buffer, 1, nullptr, &out_len);
                                 post_content << buffer;
@@ -155,6 +156,10 @@ void socket_interface_process_client(void* param) {
                     string pc_s = post_content.str();
                     if (strstr(rp_0, "identity") == rp_0) {
                         content = identity_interface(sirt, &request_path, &params, pc_s, status_code);
+                    } else if (strstr(rp_0, "contact") == rp_0) {
+                        content = contact_interface(sirt, &request_path, &params, pc_s, status_code);
+                    } else if (strstr(rp_0, "message") == rp_0) {
+                        content = message_interface(sirt, &request_path, &params, pc_s, status_code);
                     }
                 }
                 response << *status_code;

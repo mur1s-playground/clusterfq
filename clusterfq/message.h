@@ -3,6 +3,8 @@
 #include "network.h"
 
 #include <string>
+#include <vector>
+#include "socket_interface.h"
 
 using namespace std;
 
@@ -51,3 +53,5 @@ void message_send_new_address(struct identity* i, struct contact* c);
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);
 void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path);
+
+string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);

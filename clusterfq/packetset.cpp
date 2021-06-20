@@ -356,7 +356,9 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 		ps->transmission_latest_sent = time(nullptr);
 
 		message_start += ps->chunk_size;
-		break;
+		if (ps->mm->mt != MT_ESTABLISH_CONTACT) {
+			break;
+		}
 	}
 	if (sent_ct == 0) {
 		int total_len = 0;

@@ -350,3 +350,36 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, unsign
 
 	packetset_loop_start_if_needed();
 }
+
+string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+	string content = "{ }";
+	const char* request_action = nullptr;
+	if (request_path->size() > 1) {
+		request_action = (*request_path)[1].c_str();
+
+		if (sirt == SIRT_GET) {
+			*status_code = (char*)HTTP_RESPONSE_404;
+		} else if (sirt == SIRT_POST) {
+			if (strstr(request_action, "send") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				string type = http_request_get_param(request_params, "type");
+				if (strstr(type.c_str(), "text") != nullptr) {
+					string message = post_content;
+					message = util_trim(message, "\r\n\t ");
+					message_send(identity_id, contact_id, (unsigned char *)message.c_str(), message.length());
+				} else if (strstr(type.c_str(), "file") != nullptr) {
+
+				}
+				
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
+		} else if (sirt == SIRT_OPTIONS) {
+			content = "Access-Control-Allow-Headers: Content-Type\n";
+			*status_code = (char*)HTTP_RESPONSE_200;
+		}
+	}
+	return content;
+}
