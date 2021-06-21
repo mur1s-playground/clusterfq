@@ -13,9 +13,12 @@
 	</head>
 	<body>
 	<div id="app"></div>
+	<div id="app_backend"></div>
 	
 	<script type="text/javascript">
 		var base_element = document.getElementById("app");
+		var backend_element = document.getElementById("app_backend");
+		backend_element.style.display = "none";
         
 		var app = new App(base_element);
 		
@@ -26,15 +29,16 @@
 		var chat = new Chat(db, [messages]);
 		var contacts = new Contacts(db, [chat]);
 		var identities = new Identities(db, [contacts]);
+
 		var packetset = new Packetset(db, null);
 		
 		app.component_add(base_element, messagebox);
 		app.component_add(base_element, db);
 		app.component_add(base_element, identities);
 		app.component_add(base_element, contacts);
-		app.component_add(base_element, chat);
 		app.component_add(base_element, messages);
-		app.component_add(base_element, packetset);
+		app.component_add(base_element, chat);
+		app.component_add(backend_element, packetset);
 
         function main_loop() {
             app.update();

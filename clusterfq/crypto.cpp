@@ -542,6 +542,7 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 
 	int decode_len = crypto_calc_decode_length(to_decode);
 	unsigned char* buffer = (unsigned char*)malloc(decode_len + 1);
+	memset(buffer, 0, decode_len);
 	buffer[decode_len] = '\0';
 
 	char* t_d = (char *)to_decode;
@@ -556,11 +557,12 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 			}
 		}
 	}
+	
 	bio = BIO_new_mem_buf(t_d, -1);
 	b64 = BIO_new(BIO_f_base64());
 	bio = BIO_push(b64, bio);
 
-	*out_length = BIO_read(bio, buffer, strlen(to_decode));
+	*out_length = BIO_read(bio, buffer, strlen(t_d));
 	BIO_free_all(bio);
 	if (underscore_to_slash) free(t_d);
 	return buffer;

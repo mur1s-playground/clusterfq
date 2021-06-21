@@ -400,7 +400,7 @@ string identity_contact_list(unsigned int id) {
 	return res;
 }
 
-string identity_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+string identity_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
 	if (request_path->size() > 1) {
@@ -432,7 +432,7 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				string name = http_request_get_param(request_params, "name");
 				string address = http_request_get_param(request_params, "address");
-				string pubkey = post_content;
+				string pubkey(post_content);
 				*status_code = (char*)HTTP_RESPONSE_200;
 				struct contact c;
 				contact_create(&c, name, pubkey, address);

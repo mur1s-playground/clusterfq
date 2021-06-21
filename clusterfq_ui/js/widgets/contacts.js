@@ -12,51 +12,75 @@ var Contacts = function(db, change_dependencies) {
 	this.elem.style.display = "none";
 	
 	this.menu = document.createElement("div");
+	this.menu.style.display = "flex";
+	this.menu.style.justifyContent = "space-between";
+	this.menu.style.backgroundColor = "#cccccc";
+	this.menu.style.borderRadius = "5px";
+	this.menu.style.margin = "5px";
+	this.menu.style.padding = "10px";
+	this.menu.style.justifyContent = "flex-end";
 
 	this.add_btn = document.createElement("button");
+	this.add_btn.id = this.widget.name + "_contact_add_btn";
 	this.add_btn.widget_name = this.widget.name;
 	this.add_btn.innerHTML = "+";
+	this.add_btn.style.display = "block";
 	this.add_btn.onclick = function() {
-		document.getElementById(this.widget_name + "_add_view").style.display = "block";
+		document.getElementById(this.widget_name + "_add_view").style.display = "flex";
+		this.style.display = "none";
 	}
+	this.add_btn.style.borderRadius = "5px";
+	this.add_btn.style.marginRight = "5px";
+	this.add_btn.style.padding = "5px";
+	
 	this.menu.appendChild(this.add_btn);
+	
 	
 	this.widget.content.appendChild(this.menu);
 
-	this.add_view = document.createElement("div");
+	this.add_view = document.createElement("span");
 	this.add_view.id = this.widget.name + "_add_view";
 	this.add_view.style.display = "none";
-	this.add_view.className = "add_view";
 	
 	this.update_add_view = function() {
-		this.add_view.innerHTML = "<hr>";
+		this.add_view.innerHTML = "";
 		
 		this.add_name = document.createElement("input");
 		this.add_name.id = this.widget.name + "_Name";
 		this.add_name.type = "text";
 		this.add_name.placeholder = "Name";
+		this.add_name.style.borderRadius = "5px";
+		this.add_name.style.marginRight = "5px";
+		this.add_name.style.padding = "5px";
 		this.add_view.appendChild(this.add_name);
 		
-		var label_dsc = document.createElement("label");
-		label_dsc.innerHTML = "Public key";
-		this.add_view.appendChild(label_dsc);
 		this.add_view.innerHTML += "<br>";
 		this.add_desc = document.createElement("textarea");
+		this.add_desc.title = "Public Key";
 		this.add_desc.id = this.widget.name + "_Pubkey";
+		this.add_desc.style.borderRadius = "5px";
+		this.add_desc.style.marginRight = "5px";
+		this.add_desc.style.padding = "5px";
 		this.add_view.appendChild(this.add_desc);
-		this.add_view.innerHTML += "<br><hr>";
 		
 		this.add_address = document.createElement("input");
 		this.add_address.id = this.widget.name + "_Address";
 		this.add_address.type = "text";
 		this.add_address.placeholder = "Address";
+		this.add_address.style.borderRadius = "5px";
+		this.add_address.style.marginRight = "5px";
+		this.add_address.style.padding = "5px";
 		this.add_view.appendChild(this.add_address);
 		
 		this.cancel_exec = document.createElement("button");
 		this.cancel_exec.widget_name = this.widget.name;
-		this.cancel_exec.innerHTML = "x";
+		this.cancel_exec.appendChild(document.createTextNode("\u26cc"));
+		this.cancel_exec.style.borderRadius = "5px";
+		this.cancel_exec.style.marginRight = "5px";
+		this.cancel_exec.style.padding = "5px";
 		this.cancel_exec.onclick = function() {
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
+			document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
 		}
 		this.add_view.appendChild(this.cancel_exec);
 		
@@ -65,14 +89,15 @@ var Contacts = function(db, change_dependencies) {
 		this.add_exec.obj = this;
 		this.add_exec.widget_name = this.widget.name;
 		this.add_exec.innerHTML = "&#10003;";
+		this.add_exec.style.borderRadius = "5px";
+		this.add_exec.style.marginRight = "5px";
+		this.add_exec.style.padding = "5px";
 		this.add_exec.onclick = function() {
 			this.obj.contact_add();
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
+			document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
 		}
 		this.add_view.appendChild(this.add_exec);
-		
-		var hr = document.createElement("hr");
-		this.add_view.appendChild(hr);
 	}
 
 	this.on_contact_add_response = function() {
@@ -86,7 +111,7 @@ var Contacts = function(db, change_dependencies) {
 		this.db.query_post("identity/contact_add?identity_id=" + this.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
 	}
 
-	this.widget.content.appendChild(this.add_view);
+	this.menu.appendChild(this.add_view);
 		
 	this.contacts_view = document.createElement("div");
 	this.contacts_view.id = this.widget.name + "_contacts_view";
@@ -109,11 +134,18 @@ var Contacts = function(db, change_dependencies) {
 						contact.contact_id = elem["id"];
 						contact.style.display = "flex";
 						contact.style.justifyContent = "space-between";
+						contact.style.backgroundColor = "#cccccc";
+						contact.style.borderRadius = "5px";
+						contact.style.margin = "5px";
+						contact.style.padding = "10px";
 						
 						var name = document.createElement("span");
 						name.innerHTML = elem["name"];
 						name.style.width = "50%";
 						name.style.textAlign = "center";
+						name.style.borderRadius = "5px";
+						name.style.margin = "5px";
+						name.style.padding = "5px";
 						
 						if (elem["id"] == this.selected_contact_id) {
 							name.style.backgroundColor = "#00ff00";
@@ -132,34 +164,44 @@ var Contacts = function(db, change_dependencies) {
 							this.obj.changed_f();
 						};
 						
+						var status_container = document.createElement("span");
+						status_container.style.display = "inline-flex";
+						contact.appendChild(status_container);
+						
 						var sending = document.createElement("span");
-						sending.padding = "5px";
-						sending.margin = "5px";
+						sending.style.padding = "5px";
+						sending.style.margin = "5px";
+						sending.style.borderRadius = "5px";
+						sending.backgroundColor = "#eeeeee";
 						sending.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_sending";
 						sending.appendChild(document.createTextNode("\u2197"));
-						contact.appendChild(sending);
+						status_container.appendChild(sending);
 				
 						var receiving = document.createElement("span");
-						receiving.padding = "5px";
-						receiving.margin = "5px";
+						receiving.style.padding = "5px";
+						receiving.style.margin = "5px";
+						receiving.style.borderRadius = "5px";
+						receiving.backgroundColor = "#eeeeee";
 						receiving.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_receiving";
 						receiving.appendChild(document.createTextNode("\u2199"));
-						contact.appendChild(receiving);
+						status_container.appendChild(receiving);
 				
 						var received = document.createElement("span");
-						received.padding = "5px";
-						received.margin = "5px";
+						received.style.padding = "5px";
+						received.style.margin = "5px";
+						received.style.borderRadius = "5px";
+						received.backgroundColor = "#eeeeee";
 						received.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_received";
 						received.appendChild(document.createTextNode("\u2731"))
 						received.style.visibility = "hidden";
-						contact.appendChild(received);
+						status_container.appendChild(received);
 
 						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_OUT_PENDING") && 
 							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_OUT_PENDING"] === true) {
 								sending.style.backgroundColor = "#0000ff";
-								sending.style.color = "#ffffff";
+								sending.style.color = "#eeeeee";
 						} else {
-								sending.style.backgroundColor = "#ffffff";
+								sending.style.backgroundColor = "#eeeeee";
 								sending.style.color = "#000000";
 						}
 
@@ -167,7 +209,7 @@ var Contacts = function(db, change_dependencies) {
 							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_PENDING"] === true) {
 								receiving.style.backgroundColor = "#00ff00";
 						} else {
-								receiving.style.backgroundColor = "#ffffff";
+								receiving.style.backgroundColor = "#eeeeee";
 						}
 
 						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_IN_COMPLETE") &&
@@ -179,7 +221,16 @@ var Contacts = function(db, change_dependencies) {
 								}
 						}
 						
+						this.space_fill = document.createElement("div");
+						this.space_fill.style.width = "30%";
+						contact.appendChild(this.space_fill);
+						
+						
 						this.contacts_view.appendChild(contact);
+						
+						
+						
+						
 					};
 				}		
 				}
@@ -248,7 +299,13 @@ var Contacts = function(db, change_dependencies) {
 			}
 			
 			this.update_contacts_view();
-						
+			
+			if (this.selected_identity_id == -1) {
+				this.widget.elem.style.display = "none";
+			} else {
+				this.widget.elem.style.display = "block";
+			}
+			
 			this.changed = false;
 		}
 	}

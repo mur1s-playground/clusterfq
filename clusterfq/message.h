@@ -53,6 +53,7 @@ void message_send_session_key(struct identity* i, struct contact* c, bool prepen
 void message_send_new_address(struct identity* i, struct contact* c);
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);
-void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path);
+//void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path);
+void message_send_file(unsigned int identity_id, unsigned int contact_id, string name, unsigned char* data, unsigned int data_len);
 
-string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);
+string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code);

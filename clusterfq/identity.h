@@ -49,4 +49,4 @@ void identity_contact_add(unsigned int id, struct contact *c);
 string identity_share(unsigned int id, string name_to);
 string identity_contact_list(unsigned int id);
 
-string identity_interface(enum socket_interface_request_type sirt, vector<string> *request_path, vector<string> *request_params, string post_content, char **status_code);
+string identity_interface(enum socket_interface_request_type sirt, vector<string> *request_path, vector<string> *request_params, char *post_content, unsigned int post_content_length, char **status_code);

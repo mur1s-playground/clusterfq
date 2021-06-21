@@ -25,7 +25,7 @@ void socket_interface_static_init(int port) {
 	thread_pool_init(&socket_interface_thread_pool, 25);
 
 	network_init(&socket_interface_static.tcp_server);
-	network_tcp_socket_create(&socket_interface_static.tcp_server, "::", 0, port);
+	network_tcp_socket_create(&socket_interface_static.tcp_server, "::1", 0, port);
 	network_tcp_socket_server_bind(&socket_interface_static.tcp_server);
 	network_tcp_socket_server_listen(&socket_interface_static.tcp_server);
 }
@@ -102,9 +102,12 @@ void socket_interface_process_client(void* param) {
                 vector<string> request_path = vector<string>();
                 vector<string> params = vector<string>();
 
-                stringstream post_content;
+                //stringstream post_content;
 
                 stringstream response;
+
+                int content_length = 0;
+                char* post_content = nullptr;
 
                 if (request.size() > 0) {
                     vector<string> req_0_splt = util_split(request[0], " ");
@@ -126,8 +129,7 @@ void socket_interface_process_client(void* param) {
                         sirt = SIRT_GET;
                     } else if (strstr(req_0, "POST") == req_0) {
                         sirt = SIRT_POST;
-                        
-                        int content_length = 0;
+                              
                         for (int i = 1; i < request.size(); i++) {
                             vector<string> req_sub = util_split(request[i], " ");
                             if (strstr(req_sub[0].c_str(), "Content-Length:") != nullptr) {
@@ -137,11 +139,14 @@ void socket_interface_process_client(void* param) {
                         }
 
                         if (content_length > 0) {
+                            post_content = (char*)malloc(content_length + 1);
                             network_socket_read(client, &buffer, 1, nullptr, &out_len);
                             for (int cc = 0; cc < content_length; cc++) {
                                 network_socket_read(client, &buffer, 1, nullptr, &out_len);
-                                post_content << buffer;
+                                post_content[cc] = buffer;
+                                //post_content << buffer;
                             }
+                            post_content[content_length] = '\0';
                         }
                     } else if (strstr(req_0, "OPTIONS") == req_0) {
                         sirt = SIRT_OPTIONS;
@@ -153,16 +158,19 @@ void socket_interface_process_client(void* param) {
                 char** status_code = (char **)&HTTP_RESPONSE_501;
                 if (request_path.size() > 0) {
                     const char* rp_0 = request_path[0].c_str();
-                    string pc_s = post_content.str();
                     if (strstr(rp_0, "packetset") == rp_0) {
-                        content = packetset_interface(sirt, &request_path, &params, pc_s, status_code);
+                        content = packetset_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     } else if (strstr(rp_0, "identity") == rp_0) {
-                        content = identity_interface(sirt, &request_path, &params, pc_s, status_code);
+                        content = identity_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     } else if (strstr(rp_0, "contact") == rp_0) {
-                        content = contact_interface(sirt, &request_path, &params, pc_s, status_code);
+                        content = contact_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     } else if (strstr(rp_0, "message") == rp_0) {
-                        content = message_interface(sirt, &request_path, &params, pc_s, status_code);
+                        content = message_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     }
+                }
+
+                if (post_content != nullptr) {
+                    free(post_content);
                 }
                 response << *status_code;
                 response << http_response_date_now();

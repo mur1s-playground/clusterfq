@@ -820,7 +820,7 @@ string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_
 
 			result << splt[1];
 
-			for (int f = 2; f < t_splt.size(); f++) {
+			for (int f = 0; f < t_splt.size(); f++) {
 				result << t_splt[f];
 				//std::cout << t_splt[f];
 				if (f + 1 < t_splt.size()) {
@@ -854,7 +854,7 @@ string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_
 	return res;
 }
 
-string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
 	if (request_path->size() > 1) {

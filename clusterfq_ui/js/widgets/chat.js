@@ -77,10 +77,27 @@ var Chat = function(db, change_dependencies) {
 			var msg_txt = null;
 			if (resp["chat"][prop].hasOwnProperty("message")) {
 				msg_txt = document.createTextNode(resp["chat"][prop]["message"]);
+				msg.appendChild(msg_txt);
 			} else if (resp["chat"][prop].hasOwnProperty("file")){
-				msg_txt = document.createTextNode(resp["chat"][prop]["file"]);
+				var fname = resp["chat"][prop]["file"];
+				var ext_a = fname.split(".");
+				var ext = ext_a[ext_a.length - 1];
+				if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "bmp" || ext == "gif") {
+					msg.style.textAlign = "center";
+					var ar = document.createElement("a");
+					ar.href = resp["chat"][prop]["file"];
+					ar.target = "_new";
+					var img_f = document.createElement("img");
+					img_f.src = resp["chat"][prop]["file"];
+					img_f.style.width = "70%";
+					ar.appendChild(img_f);
+					
+					msg.appendChild(ar);
+				} else {
+					msg_txt = document.createTextNode(resp["chat"][prop]["file"]);
+					msg.appendChild(msg_txt);
+				}
 			}
-			msg.appendChild(msg_txt);
 		
 			elem.style.padding = "10px";
 			elem.style.margin = "5px";
@@ -122,7 +139,7 @@ var Chat = function(db, change_dependencies) {
 				sender.style.marginLeft = "5px";
 				msg.style.marginLeft = "5px";
 			}
-			chat.chat.appendChild(elem);
+			chat.chat.prepend(elem);
 		}
 	}
 	
@@ -158,6 +175,12 @@ var Chat = function(db, change_dependencies) {
 						
 			this.update_counter = this.update_interval - 1;
 			this.changed = false;
+
+			if (this.identity_id == -1 || this.contact_id == -1) {
+				this.widget.elem.style.display = "none";
+			} else {
+				this.widget.elem.style.display = "block";
+			}
 		}
 		this.update_counter = this.update_counter + 1;
 		if (this.update_counter == this.update_interval) {

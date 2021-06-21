@@ -12,9 +12,31 @@ var Messages = function(db, change_dependencies) {
 	
 	this.changed = true;
 	
+	this.message_send_container = document.createElement("div");
+	this.message_send_container.style.display = "flex";
+	this.message_send_container.style.justifyContent = "space-between";
+	this.message_send_container.style.padding = "10px";
+	this.message_send_container.style.margin = "5px";
+	this.message_send_container.style.backgroundColor = "#cccccc";
+	this.message_send_container.style.borderRadius = "5px";
+	
 	this.message_type = document.createElement("select");
+	this.message_type.style.width = "20%";
+	this.message_type.obj = this;
 	this.message_type.id = this.widget.name + "_type_select";
 	this.message_type.style.display = "inline";
+	this.message_type.style.marginRight = "5px;"
+	this.message_type.style.padding = "5px";
+	this.message_type.style.borderRadius = "5px";
+	this.message_type.onchange = function() {
+		if (this.selectedIndex == 0) {
+			document.getElementById(this.obj.widget.name + "_file_search").style.display = "none";
+			document.getElementById(this.obj.widget.name + "_input").style.display = "block";
+		} else {
+			document.getElementById(this.obj.widget.name + "_input").style.display = "none";
+			document.getElementById(this.obj.widget.name + "_file_search").style.display = "block";
+		}
+	}
 	
 	this.message_type_option_text = document.createElement("option");	
 	this.message_type_option_text.appendChild(document.createTextNode("Text"));
@@ -24,32 +46,97 @@ var Messages = function(db, change_dependencies) {
 	this.message_type_option_file.appendChild(document.createTextNode("File"));
 	this.message_type.appendChild(this.message_type_option_file);
 	
-	this.widget.content.appendChild(this.message_type);
-	
+	this.message_send_container.appendChild(this.message_type);
+		
 	this.on_message_send_initiated = function() {
+		document.getElementById(messages.widget.name + "_send_button").disabled = false;
+		var file_select = document.getElementById(messages.widget.name + "_file_search");
+		file_select.value = null;
+		file_select.disabled = false;
 		messagebox.message_add("message send initiated", 100, "no_class");
 	}
 	
 	this.message_input = document.createElement("input");
+	this.message_input.style.width = "60%";
 	this.message_input.obj = this;
 	this.message_input.id = this.widget.name + "_input";
+	this.message_input.style.marginLeft = "5px;"
+	this.message_input.style.padding = "5px";
+	this.message_input.style.borderRadius = "5px";
+	
 	this.message_input.onkeydown = function() {
 		if (event.key === 'Enter') {
-			if (this.value.length > 0) {
-				var input_text = this.value;
-				this.value = "";
+			var type = this.obj.message_type.options[this.obj.message_type.selectedIndex];
+			
+			if (type.innerHTML == "Text") {
+				if (this.value.length > 0) {
+					var input_text = this.value;
+					this.value = "";
 				
-				var type = this.obj.message_type.options[this.obj.message_type.selectedIndex];
-				if (type.innerHTML == "Text") {
-					this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=text", input_text, this.on_message_send_initiated);
-				} else if (type.innerHTML == "File") {
-					this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=file", input_text, this.on_message_send_initiated);
+					this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=text", input_text, this.obj.on_message_send_initiated);
 				}
 			}
 		}
 	}
 	
-	this.widget.content.appendChild(this.message_input);
+	this.message_send_container.appendChild(this.message_input);
+	
+	this.read_file = function() {
+		var input = document.getElementById(this.widget.name + "_file_search");
+		var file = input.files[0];
+		var fr = new FileReader();
+		fr.caller_ref = this;
+		fr.onload = function(e) {
+			let res = btoa(e.target.result);
+			db.query_post("message/send?identity_id=" + messages.identity_id + "&contact_id=" + messages.contact_id + "&type=file&filename=" + input.value, res, messages.on_message_send_initiated);
+		}
+		fr.readAsBinaryString(file);
+	}
+	
+	this.file_search_btn = document.createElement("input");
+	this.file_search_btn.id = this.widget.name + "_file_search";
+	this.file_search_btn.style.width = "60%";
+	this.file_search_btn.style.display = "none";
+	this.file_search_btn.style.margin = "5px";
+	this.file_search_btn.style.padding = "5px";
+	this.file_search_btn.style.borderRadius = "5px";
+	this.file_search_btn.type = "file";
+	
+	this.message_send_container.appendChild(this.file_search_btn);
+	
+	this.message_send_btn = document.createElement("button");
+	this.message_send_btn.id = this.widget.name + "_send_button";
+	this.message_send_btn.obj = this;
+	this.message_send_btn.innerHTML = "&#10003";
+	this.message_send_btn.style.borderRadius = "5px";
+	this.message_send_btn.style.padding = "5px";
+	this.message_send_btn.style.margin = "5px";
+	this.message_send_btn.onclick = function() {
+		var input_f = document.getElementById(this.obj.widget.name + "_input");
+		var input_text = input_f.value;
+		
+		var type = this.obj.message_type.options[this.obj.message_type.selectedIndex];
+			
+		if (type.innerHTML == "Text") {
+			if (this.value.length > 0) {
+				var input_text = this.value;
+				this.value = "";
+			
+				this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=text", input_text, this.obj.on_message_send_initiated);
+			}
+		} else if (type.innerHTML == "File") {
+			var input = document.getElementById(messages.widget.name + "_file_search");
+			if (input.value != null) {
+				this.disabled = true;
+				input.disabled = true;
+				this.obj.read_file();
+			}
+		}
+	}
+	
+	this.message_send_container.appendChild(this.message_send_btn);
+	
+	this.widget.content.appendChild(this.message_send_container);
 	
 	this.update_selected = function(identity_id, contact_id) {
 		messages.identity_id = identity_id;
@@ -69,6 +156,12 @@ var Messages = function(db, change_dependencies) {
 		if (this.changed) {
 			this.elem.style.display = "block";
 						
+			if (this.identity_id == -1 || this.contact_id == -1) {
+				this.widget.elem.style.display = "none";
+			} else {
+				this.widget.elem.style.display = "block";
+			}
+
 			this.changed = false;
 		}
 	}

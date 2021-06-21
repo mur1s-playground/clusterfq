@@ -64,4 +64,4 @@ void packetset_destroy(struct packetset* ps);
 
 void packetset_enqueue_receipt(struct message_receipt mr);
 
-string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);
+string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code);

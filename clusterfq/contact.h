@@ -89,4 +89,4 @@ bool contact_process_message(struct identity *i, struct contact *c, unsigned cha
 
 string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from = 0, time_t to = 0);
 
-string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code);
+string contact_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code);

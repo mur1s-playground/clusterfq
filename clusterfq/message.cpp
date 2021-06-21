@@ -301,18 +301,39 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 	packetset_loop_start_if_needed();
 }
 
-void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path) {
+void message_send_file(unsigned int identity_id, unsigned int contact_id, string name, unsigned char* data, unsigned int data_len) {
+	/*
 	unsigned char* file = (unsigned char*)malloc(1024 * 1024 * 10);
 
 	size_t out_len = 0;
 	string filename((char*)path);
 	util_file_read_binary(filename, file, &out_len);
+	*/
+	size_t out_len = 0;
 
-	string name = util_file_get_name(filename);
+	//insert linefeeds
+	int needed_lfs = data_len / 64;
 
-	std::cout << "file input: " << out_len << std::endl;
+	unsigned char* buffer = (unsigned char*)malloc(data_len + needed_lfs + 1);
+	int ct = 0;
+	for (int i = 0; i < data_len; i++) {
+		if (i / 64 == 0) {
+			buffer[ct] = '\n';
+			ct++;
+		}
+		buffer[ct] = data[i];
+		ct++;
+	}
+	buffer[ct] = '\0';
 
-	unsigned char* hash = crypto_hash_md5(file, out_len);
+	unsigned char *bfile = crypto_base64_decode((char *)buffer, &out_len);
+	free(buffer);
+
+	string fname = util_file_get_name(name);
+	
+	std::cout << "file input: " << data_len << std::endl;
+
+	unsigned char* hash = crypto_hash_md5(data, data_len);
 	char* base_64 = crypto_base64_encode(hash, 16);
 	std::cout << "base64-hash: " << base_64 << std::endl;
 	free(hash);
@@ -331,15 +352,15 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, unsign
 
 	//PACKET
 							//type		//pubkey			//hash-id		//chunk-id		//resend-ct		//meta/pkt-overhead
-	unsigned int size_est = 1 + out_len + 17 + 6 + 10 + 40;
+	unsigned int size_est = 1 + data_len + 17 + 6 + 10 + 40;
 
 	struct NetworkPacket* np = new NetworkPacket();
 	network_packet_create(np, size_est);
 	network_packet_append_int(np, MT_FILE);
-	network_packet_append_str(np, name.c_str(), name.length());
-	network_packet_append_str(np, (char*)file, out_len);
+	network_packet_append_str(np, fname.c_str(), fname.length());
+	network_packet_append_str(np, (char*)bfile, out_len);
 
-	free(file);
+	free(bfile);
 
 	mm->np = np;
 
@@ -351,7 +372,7 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, unsign
 	packetset_loop_start_if_needed();
 }
 
-string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, string post_content, char** status_code) {
+string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
 	if (request_path->size() > 1) {
@@ -365,11 +386,12 @@ string message_interface(enum socket_interface_request_type sirt, vector<string>
 				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
 				string type = http_request_get_param(request_params, "type");
 				if (strstr(type.c_str(), "text") != nullptr) {
-					string message = post_content;
+					string message(post_content);
 					message = util_trim(message, "\r\n\t ");
 					message_send(identity_id, contact_id, (unsigned char *)message.c_str(), message.length());
 				} else if (strstr(type.c_str(), "file") != nullptr) {
-
+					string filename = http_request_get_param(request_params, "filename");
+					message_send_file(identity_id, contact_id, filename, (unsigned char *)post_content, post_content_length);
 				}
 				
 				*status_code = (char*)HTTP_RESPONSE_200;
