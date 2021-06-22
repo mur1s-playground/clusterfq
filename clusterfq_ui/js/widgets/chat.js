@@ -50,6 +50,7 @@ var Chat = function(db, change_dependencies) {
 			var source_is_identity = resp["chat"][prop]["sender"] == chat.identity_name;
 			
 			elem = document.createElement("div");
+			elem.className = "chat";
 			elem.id = chat.widget.name + "_chat_" + prop;
 			
 			var datetime = document.createElement("span")
@@ -89,7 +90,7 @@ var Chat = function(db, change_dependencies) {
 					ar.target = "_new";
 					var img_f = document.createElement("img");
 					img_f.src = resp["chat"][prop]["file"];
-					img_f.style.width = "70%";
+					img_f.className = "chat";
 					ar.appendChild(img_f);
 					
 					msg.appendChild(ar);
@@ -98,46 +99,25 @@ var Chat = function(db, change_dependencies) {
 					msg.appendChild(msg_txt);
 				}
 			}
-		
-			elem.style.padding = "10px";
-			elem.style.margin = "5px";
-			
+				
 			datetime.style.backgroundColor = "#eeeeee";
-			datetime.style.padding = "5px";
-			datetime.style.borderRadius = "5px";
-			sender.style.padding = "5px";
-			sender.style.borderRadius = "5px";
-			msg.style.padding = "5px";
+
 			if (source_is_identity) {
-				elem.style.borderRadius = "15px 50px 30px 5px";
-				elem.style.backgroundColor = "#cccccc";
+				elem.className += " chat_out";
+				
+				sender.className = "selected_i";
+				
 				elem.appendChild(datetime);
-				sender.style.backgroundColor = "#0000ff";
-				sender.style.color = "#ffffff";
 				elem.appendChild(sender);
 				elem.appendChild(msg);
-				
-				elem.style.display = "flex";
-				elem.style.justifyContent = "flex-start";
-				
-				datetime.style.marginRight = "5px";
-				sender.style.marginRight = "5px";
-				msg.style.marginRight = "5px";
 			} else {
-				elem.style.borderRadius = "50px 15px 5px 30px";
-				elem.style.backgroundColor = "#aaaaaa";
-				elem.appendChild(msg);
-				sender.style.backgroundColor = "#00ff00";
+				elem.className += " chat_in";
 				
+				sender.className = "selected_c";
+				
+				elem.appendChild(msg);
 				elem.appendChild(sender);
 				elem.appendChild(datetime);
-				
-				elem.style.display = "flex";
-				elem.style.justifyContent = "flex-end";
-				
-				datetime.style.marginLeft = "5px";
-				sender.style.marginLeft = "5px";
-				msg.style.marginLeft = "5px";
 			}
 			chat.chat.prepend(elem);
 		}

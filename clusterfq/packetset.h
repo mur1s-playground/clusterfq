@@ -40,6 +40,7 @@ enum packetset_state {
 };
 
 struct packetset_state_info {
+	unsigned char *hash_id;
 	unsigned int identity_id;
 	unsigned int contact_id;
 

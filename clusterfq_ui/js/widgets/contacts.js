@@ -12,13 +12,7 @@ var Contacts = function(db, change_dependencies) {
 	this.elem.style.display = "none";
 	
 	this.menu = document.createElement("div");
-	this.menu.style.display = "flex";
-	this.menu.style.justifyContent = "space-between";
-	this.menu.style.backgroundColor = "#cccccc";
-	this.menu.style.borderRadius = "5px";
-	this.menu.style.margin = "5px";
-	this.menu.style.padding = "10px";
-	this.menu.style.justifyContent = "flex-end";
+	this.menu.className = "menu";
 
 	this.add_btn = document.createElement("button");
 	this.add_btn.id = this.widget.name + "_contact_add_btn";
@@ -29,17 +23,13 @@ var Contacts = function(db, change_dependencies) {
 		document.getElementById(this.widget_name + "_add_view").style.display = "flex";
 		this.style.display = "none";
 	}
-	this.add_btn.style.borderRadius = "5px";
-	this.add_btn.style.marginRight = "5px";
-	this.add_btn.style.padding = "5px";
 	
 	this.menu.appendChild(this.add_btn);
 	
 	
-	this.widget.content.appendChild(this.menu);
-
 	this.add_view = document.createElement("span");
 	this.add_view.id = this.widget.name + "_add_view";
+	this.add_view.className = "container_0";
 	this.add_view.style.display = "none";
 	
 	this.update_add_view = function() {
@@ -49,35 +39,24 @@ var Contacts = function(db, change_dependencies) {
 		this.add_name.id = this.widget.name + "_Name";
 		this.add_name.type = "text";
 		this.add_name.placeholder = "Name";
-		this.add_name.style.borderRadius = "5px";
-		this.add_name.style.marginRight = "5px";
-		this.add_name.style.padding = "5px";
 		this.add_view.appendChild(this.add_name);
 		
 		this.add_view.innerHTML += "<br>";
 		this.add_desc = document.createElement("textarea");
 		this.add_desc.title = "Public Key";
+		this.add_desc.rows = 1;
 		this.add_desc.id = this.widget.name + "_Pubkey";
-		this.add_desc.style.borderRadius = "5px";
-		this.add_desc.style.marginRight = "5px";
-		this.add_desc.style.padding = "5px";
 		this.add_view.appendChild(this.add_desc);
 		
 		this.add_address = document.createElement("input");
 		this.add_address.id = this.widget.name + "_Address";
 		this.add_address.type = "text";
 		this.add_address.placeholder = "Address";
-		this.add_address.style.borderRadius = "5px";
-		this.add_address.style.marginRight = "5px";
-		this.add_address.style.padding = "5px";
 		this.add_view.appendChild(this.add_address);
 		
 		this.cancel_exec = document.createElement("button");
 		this.cancel_exec.widget_name = this.widget.name;
 		this.cancel_exec.appendChild(document.createTextNode("\u26cc"));
-		this.cancel_exec.style.borderRadius = "5px";
-		this.cancel_exec.style.marginRight = "5px";
-		this.cancel_exec.style.padding = "5px";
 		this.cancel_exec.onclick = function() {
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
 			document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
@@ -89,9 +68,6 @@ var Contacts = function(db, change_dependencies) {
 		this.add_exec.obj = this;
 		this.add_exec.widget_name = this.widget.name;
 		this.add_exec.innerHTML = "&#10003;";
-		this.add_exec.style.borderRadius = "5px";
-		this.add_exec.style.marginRight = "5px";
-		this.add_exec.style.padding = "5px";
 		this.add_exec.onclick = function() {
 			this.obj.contact_add();
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
@@ -99,6 +75,61 @@ var Contacts = function(db, change_dependencies) {
 		}
 		this.add_view.appendChild(this.add_exec);
 	}
+
+	this.menu.appendChild(this.add_view);
+	
+	
+	this.on_search_input_change = function() {
+		if (this.contacts_view.childNodes) {
+			if (this.contacts_view.childNodes.length > 1) {
+				for (var k = 0; k < this.contacts_view.childNodes.length; k++) {
+					if (this.contacts_view.childNodes[k].nodeName == "DIV") {
+						if (this.contacts_view.childNodes[k].childNodes[0].innerHTML.includes(this.search_input.value)) {
+							this.contacts_view.childNodes[k].style.display = "flex";
+						} else {
+							this.contacts_view.childNodes[k].style.display = "none";
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	this.search_input = document.createElement("input");
+	this.search_input.obj = this;
+	this.search_input.id = this.widget_name + "_contact_search_input";
+	this.search_input.style.display = "none";
+	this.search_input.placeholder = "Search";
+	this.search_input.onkeyup = function() {
+		this.obj.on_search_input_change();
+	}
+	this.menu.appendChild(this.search_input);
+	
+	this.toggle_search_input = function() {
+		if (this.search_input.style.display == "none") {
+			this.search_input.style.display = "inline";
+			this.search_btn.innerHTML = "x";
+			this.search_btn.title = "Close contact filter";
+		} else {
+			this.search_input.style.display = "none";
+			this.search_input.value = "";
+			this.search_btn.innerHTML = "&#128269;";
+			this.search_btn.title = "Open contact filter";
+			this.on_search_input_change();
+		}
+	}
+	
+	this.search_btn = document.createElement("button");
+	this.search_btn.id = this.widget.name + "_contact_search_btn";
+	this.search_btn.obj = this;
+	this.search_btn.innerHTML = "&#128269;";
+	this.search_btn.title = "Open contact filter";
+	this.search_btn.onclick = function() {
+		this.obj.toggle_search_input();
+	}
+	this.menu.appendChild(this.search_btn);
+
+	this.widget.content.appendChild(this.menu);
 
 	this.on_contact_add_response = function() {
 		contacts.changed_f();
@@ -110,12 +141,10 @@ var Contacts = function(db, change_dependencies) {
 		var address = document.getElementById(this.widget.name + "_Address").value;
 		this.db.query_post("identity/contact_add?identity_id=" + this.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
 	}
-
-	this.menu.appendChild(this.add_view);
 		
 	this.contacts_view = document.createElement("div");
 	this.contacts_view.id = this.widget.name + "_contacts_view";
-	this.contacts_view.style.display = "inline";
+	this.contacts_view.className = "contacts_list";
 
 	this.update_contacts_view = function() {
 		this.contacts_view.innerHTML = "";
@@ -132,27 +161,14 @@ var Contacts = function(db, change_dependencies) {
 						contact.obj = this;
 						contact.identity_id = el["identity_id"];
 						contact.contact_id = elem["id"];
-						contact.style.display = "flex";
-						contact.style.justifyContent = "space-between";
-						contact.style.backgroundColor = "#cccccc";
-						contact.style.borderRadius = "5px";
-						contact.style.margin = "5px";
-						contact.style.padding = "10px";
+						contact.className = "id_container";
 						
 						var name = document.createElement("span");
 						name.innerHTML = elem["name"];
-						name.style.width = "50%";
-						name.style.textAlign = "center";
-						name.style.borderRadius = "5px";
-						name.style.margin = "5px";
-						name.style.padding = "5px";
+						name.className = "id_name";
 						
 						if (elem["id"] == this.selected_contact_id) {
-							name.style.backgroundColor = "#00ff00";
-							name.style.color = "#ffffff";
-						} else {
-							name.style.backgroundColor = "#ffffff";
-							name.style.color = "#000000";
+							name.className += " selected_c";
 						}
 
 						contact.appendChild(name);
@@ -165,31 +181,23 @@ var Contacts = function(db, change_dependencies) {
 						};
 						
 						var status_container = document.createElement("span");
-						status_container.style.display = "inline-flex";
+						status_container.className = "container";
 						contact.appendChild(status_container);
 						
+						/* change css */
 						var sending = document.createElement("span");
-						sending.style.padding = "5px";
-						sending.style.margin = "5px";
-						sending.style.borderRadius = "5px";
 						sending.backgroundColor = "#eeeeee";
 						sending.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_sending";
 						sending.appendChild(document.createTextNode("\u2197"));
 						status_container.appendChild(sending);
 				
 						var receiving = document.createElement("span");
-						receiving.style.padding = "5px";
-						receiving.style.margin = "5px";
-						receiving.style.borderRadius = "5px";
 						receiving.backgroundColor = "#eeeeee";
 						receiving.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_receiving";
 						receiving.appendChild(document.createTextNode("\u2199"));
 						status_container.appendChild(receiving);
 				
 						var received = document.createElement("span");
-						received.style.padding = "5px";
-						received.style.margin = "5px";
-						received.style.borderRadius = "5px";
 						received.backgroundColor = "#eeeeee";
 						received.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_received";
 						received.appendChild(document.createTextNode("\u2731"))
@@ -220,25 +228,19 @@ var Contacts = function(db, change_dependencies) {
 									received.style.visibility = "visible";
 								}
 						}
+						/* --------- */
 						
 						this.space_fill = document.createElement("div");
-						this.space_fill.style.width = "30%";
+						this.space_fill.className = "id_controls adjustscroll";
 						contact.appendChild(this.space_fill);
 						
 						
 						this.contacts_view.appendChild(contact);
-						
-						
-						
-						
 					};
-				}		
+					}		
 				}
 			}
 		}
-		
-		var hr = document.createElement("hr");
-		this.contacts_view.appendChild(hr);
 	}
 	
 	this.widget.content.appendChild(this.contacts_view);

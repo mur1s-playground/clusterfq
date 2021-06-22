@@ -2,6 +2,7 @@
 
 #include "util.h"
 #include "address_factory.h"
+#include "crypto.h"
 
 #include <sstream>
 #include <iostream>
@@ -349,6 +350,18 @@ void contact_dump(struct contact* c) {
 }
 
 void contact_add_message(struct contact* c, struct message_meta* mm, bool prepend, bool lock_out) {
+
+	packetset_state_info psi;
+
+	psi.hash_id = (unsigned char*)crypto_base64_encode(mm->msg_hash_id, 16);
+	psi.identity_id = mm->identity_id;
+	psi.contact_id = c->id;
+	psi.ps = PS_OUT_CREATED;
+	psi.mt = mm->mt;
+
+	packetset_static_add_state_info(psi);
+
+
 	if (lock_out) mutex_wait_for(&c->outgoing_messages_lock);
 	if (prepend) {
 		c->outgoing_messages.insert(c->outgoing_messages.begin(), mm);
@@ -366,14 +379,6 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 	}
 	if (!found) {
 		contact_message_pending.push_back(c);
-
-		packetset_state_info psi;
-		psi.identity_id = mm->identity_id;
-		psi.contact_id = c->id;
-		psi.ps = PS_OUT_CREATED;
-		psi.mt = mm->mt;
-
-		packetset_static_add_state_info(psi);
 	}
 	mutex_release(&contact_message_pending_lock);
 }
@@ -478,6 +483,8 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 		c->incoming_packetsets.insert(pair<string, struct packetset>(string(hash_id), ps_));
 
 		packetset_state_info psi;
+
+		psi.hash_id = (unsigned char*)crypto_base64_encode((unsigned char *)hash_id, 16);
 		psi.identity_id = i->id;
 		psi.contact_id = c->id;
 		psi.ps = PS_IN_PENDING;
@@ -742,6 +749,8 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			}
 			if (ps->processed) {
 				packetset_state_info psi;
+
+				psi.hash_id = (unsigned char*)crypto_base64_encode((unsigned char *)hash_id, 16);
 				psi.identity_id = i->id;
 				psi.contact_id = c->id;
 				psi.ps = PS_IN_COMPLETE;

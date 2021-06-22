@@ -52,6 +52,12 @@ string packetset_static_get_state_infos() {
 	result << "\t\"packetset_state_infos\": [\n";
 	for (int psi = 0; psi < packetset_state_info_.size(); psi++) {
 		result << "\t\t{\n";
+		result << "\t\t\"hash_id\": \"";
+		for (int hl = 0; hl < strlen((char*)packetset_state_info_[psi].hash_id) - 1; hl++) {
+			result << packetset_state_info_[psi].hash_id[hl];
+		}
+		result << "\",\n";
+		free(packetset_state_info_[psi].hash_id);
 		result << "\t\t\"identity_id\": " << packetset_state_info_[psi].identity_id << ",\n";
 		result << "\t\t\"contact_id\": " << packetset_state_info_[psi].contact_id << ",\n";
 		result << "\t\t\"packetset_state_info\": " << packetset_state_info_[psi].ps << ",\n";
@@ -136,6 +142,8 @@ void packetset_loop(void* unused) {
 							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
 
 							packetset_state_info psi;
+
+							psi.hash_id = (unsigned char*)crypto_base64_encode(ps->mm->msg_hash_id, 16);
 							psi.identity_id = i->id;
 							psi.contact_id = c->id;
 							psi.ps = PS_OUT_PENDING;
@@ -146,6 +154,8 @@ void packetset_loop(void* unused) {
 							break;
 						} else {
 							packetset_state_info psi;
+
+							psi.hash_id = (unsigned char*)crypto_base64_encode((unsigned char *)ps->mm->msg_hash_id, 16);
 							psi.identity_id = i->id;
 							psi.contact_id = c->id;
 							psi.ps = PS_OUT_COMPLETE;

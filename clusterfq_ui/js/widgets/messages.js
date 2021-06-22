@@ -13,21 +13,12 @@ var Messages = function(db, change_dependencies) {
 	this.changed = true;
 	
 	this.message_send_container = document.createElement("div");
-	this.message_send_container.style.display = "flex";
-	this.message_send_container.style.justifyContent = "space-between";
-	this.message_send_container.style.padding = "10px";
-	this.message_send_container.style.margin = "5px";
-	this.message_send_container.style.backgroundColor = "#cccccc";
-	this.message_send_container.style.borderRadius = "5px";
+	this.message_send_container.className = "menu";
 	
 	this.message_type = document.createElement("select");
-	this.message_type.style.width = "20%";
+	this.message_type.className = "message_type";
 	this.message_type.obj = this;
 	this.message_type.id = this.widget.name + "_type_select";
-	this.message_type.style.display = "inline";
-	this.message_type.style.marginRight = "5px;"
-	this.message_type.style.padding = "5px";
-	this.message_type.style.borderRadius = "5px";
 	this.message_type.onchange = function() {
 		if (this.selectedIndex == 0) {
 			document.getElementById(this.obj.widget.name + "_file_search").style.display = "none";
@@ -53,16 +44,12 @@ var Messages = function(db, change_dependencies) {
 		var file_select = document.getElementById(messages.widget.name + "_file_search");
 		file_select.value = null;
 		file_select.disabled = false;
-		messagebox.message_add("message send initiated", 100, "no_class");
 	}
 	
 	this.message_input = document.createElement("input");
-	this.message_input.style.width = "60%";
+	this.message_input.className = "message";
 	this.message_input.obj = this;
 	this.message_input.id = this.widget.name + "_input";
-	this.message_input.style.marginLeft = "5px;"
-	this.message_input.style.padding = "5px";
-	this.message_input.style.borderRadius = "5px";
 	
 	this.message_input.onkeydown = function() {
 		if (event.key === 'Enter') {
@@ -95,11 +82,8 @@ var Messages = function(db, change_dependencies) {
 	
 	this.file_search_btn = document.createElement("input");
 	this.file_search_btn.id = this.widget.name + "_file_search";
-	this.file_search_btn.style.width = "60%";
+	this.file_search_btn.className = "message";
 	this.file_search_btn.style.display = "none";
-	this.file_search_btn.style.margin = "5px";
-	this.file_search_btn.style.padding = "5px";
-	this.file_search_btn.style.borderRadius = "5px";
 	this.file_search_btn.type = "file";
 	
 	this.message_send_container.appendChild(this.file_search_btn);
@@ -108,9 +92,6 @@ var Messages = function(db, change_dependencies) {
 	this.message_send_btn.id = this.widget.name + "_send_button";
 	this.message_send_btn.obj = this;
 	this.message_send_btn.innerHTML = "&#10003";
-	this.message_send_btn.style.borderRadius = "5px";
-	this.message_send_btn.style.padding = "5px";
-	this.message_send_btn.style.margin = "5px";
 	this.message_send_btn.onclick = function() {
 		var input_f = document.getElementById(this.obj.widget.name + "_input");
 		var input_text = input_f.value;

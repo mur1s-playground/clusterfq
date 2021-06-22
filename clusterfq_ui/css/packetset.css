@@ -1,0 +1,91 @@
+#wg_packetset {
+	//display: none;
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	z-index: 10;
+	background-color: #ffffff;
+}
+
+#wg_packetset_header {
+	background-color: #ffffff;
+}
+
+#wg_packetset_content {
+	background-color: #ffffff;
+}
+
+div.ps_messagebox {
+	display: flex;
+	max-height: 150px;
+	overflow-x: auto;
+	background-color: #ffffff;
+}
+
+div.ps_messagebox_item {
+	flex: 0 0 auto;
+	max-width: 120px;
+	height: 100px;
+	background-color: #ffffff;
+	margin: 2px;
+	padding: 2px;
+	border: 1px solid black;
+	display: table;
+	border-spacing: 1px;
+	border-collapse: separate;
+	border-radius: 5px;
+}
+
+div.ps_messagebox_item_sub_container {
+	display: table-row;
+}
+
+span.ps_messagebox_item_lbl {
+	font-size: 12px;
+	font-style: bold;
+	display: table-cell;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	text-align: center;
+	vertical-align: middle;
+}
+
+span.ps_messagebox_item_identity_lbl {
+	background-color: #0000ff;
+	color: #ffffff;
+}
+
+span.ps_messagebox_item_contact_lbl {
+	background-color: #00ff00;
+}
+
+span.ps_messagebox_item_state_lbl {
+	background-color: #ff0000;
+}
+
+span.ps_messagebox_item_mt_lbl {
+	background-color: #9803fc;
+}
+
+span.ps_messagebox_item_content {
+	font-size: 10px;
+	display: table-cell;
+	vertical-align: middle;
+	padding-left: 5px;
+	border-radius: 5px;
+}
+
+span.ps_messagebox_item_content.CREATED {
+	background-color: #fca103;
+}
+
+span.ps_messagebox_item_content.PENDING {
+	background-color: #fceb03;
+}
+
+span.ps_messagebox_item_content.COMPLETE {
+	background-color: #03fca9;
+}
+

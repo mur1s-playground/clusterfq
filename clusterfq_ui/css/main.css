@@ -1,0 +1,125 @@
+button {
+	display: inline;
+	width: 30px;
+	border-radius: 5px;
+	margin-right: 5px;
+	padding: 5px;
+}
+
+div.chat {
+	display: flex;
+	padding: 10px;
+	margin: 5px;
+}
+
+div.chat.chat_in {
+	border-radius: 50px 15px 5px 30px;
+	background-color: #aaaaaa;
+	justify-content: flex-end;
+}
+
+div.chat.chat_out {
+	border-radius: 15px 50px 30px 5px;
+	background-color: #cccccc;
+	justify-content: flex-start;
+}
+
+div.contacts_list {
+	display: block;
+	max-height: 200px;
+	overflow-y: overlay;
+}
+
+div.id_container {
+	display: flex;
+	justify-content: space-between;
+	background-color: #cccccc;
+	border-radius: 5px;
+	margin: 5px;
+	padding: 10px;
+}
+
+div.id_controls {
+	width: 30%;
+	display: flex;
+	justify-content: flex-end;
+}
+
+div.menu {
+	display: flex;
+	justify-content: space-between;
+	background-color: #cccccc;
+	border-radius: 5px;
+	margin: 5px;
+	padding: 10px;
+	justify-content: flex-end;
+}
+
+img.chat {
+	max-width: 70%;
+}
+
+input {
+	border-radius: 5px;
+	margin-right: 5px;
+	padding: 5px;
+}
+
+input.message {
+	width: 60%;
+}
+
+select {
+	display: inline;
+	margin-right: 5px;
+	padding: 5px;
+	border-radius: 5px;
+}
+
+select.message_type {
+	width: 20%;
+}
+
+span {
+	padding: 5px;
+	margin: 5px;
+	border-radius: 5px;
+}
+
+span.container {
+	padding: 5px;
+	margin: 5px;
+	border-radius: 0px;
+	display = "inline-flex";
+}
+
+span.container_0 {
+	padding: 0px;
+	margin: 0px;
+	border-radius: 0px;
+	display = "inline-flex";
+}
+
+span.id_name {
+	width: 50%;
+	text-align: center;
+	
+	background-color: #ffffff;
+	color: #000000;
+}
+
+span.selected_i {
+	background-color: #0000ff;
+	color: #ffffff;
+}
+
+span.selected_c {
+	background-color: #00ff00;
+}
+
+textarea {
+	border-radius: 5px;
+	margin-right: 5px;
+	padding: 5px;
+	max-width: 200px;
+}
