@@ -35,15 +35,24 @@ var Identities = function(db, change_dependencies) {
 		this.style.display = "none";
 	}
 	
-	this.settings_button = document.createElement("button");
-	this.settings_button.widget_name = this.widget.name;
-	this.settings_button.appendChild(document.createTextNode("\u2630"));
-	this.settings_button.onclick = function() {
+	this.packetset_toggle_btn = document.createElement("button");
+	this.packetset_toggle_btn.style.display = "none";
+	this.packetset_toggle_btn.id = this.widget.name + "_packetset_toggle_button";
+	this.packetset_toggle_btn.innerHTML = "&#128295;";
+	this.packetset_toggle_btn.title = "Show/Hide packetset";
+	this.packetset_toggle_btn.onclick = function() {
 		if (backend_element.style.display == "none") {
 			backend_element.style.display = "block";
 		} else {
 			backend_element.style.display = "none";
 		}
+	}
+	
+	this.settings_button = document.createElement("button");
+	this.settings_button.widget_name = this.widget.name;
+	this.settings_button.appendChild(document.createTextNode("\u2630"));
+	this.settings_button.onclick = function() {
+		identities.toggle_secondary_controls();
 	}
 	
 	this.widget.content.appendChild(this.menu);
@@ -87,6 +96,7 @@ var Identities = function(db, change_dependencies) {
 	
 	this.menu.appendChild(this.add_view);
 	this.menu.appendChild(this.add_btn);
+	this.menu.appendChild(this.packetset_toggle_btn);
 	this.menu.appendChild(this.settings_button);
 	
 	
@@ -100,11 +110,7 @@ var Identities = function(db, change_dependencies) {
 	this.share_view = document.createElement("div");
 	this.share_view.id = this.widget.name + "_share_view";
 	this.share_view.style.display = "none";
-	this.share_view.padding = "10px";
-	this.share_view.margin = "5px";
-	this.share_view.backgroundColor = "#cccccc";
-	this.share_view.borderRadius = "5px";
-	this.share_view.style.justifyContent = "space-between";
+	this.share_view.className = "id_container";
 	
 	this.update_share_view = function() {
 		this.share_view.innerHTML = "";
@@ -123,6 +129,7 @@ var Identities = function(db, change_dependencies) {
 		this.add_desc = document.createElement("textarea");
 		this.add_desc.id = this.widget.name + "_Pubkey";
 		this.add_desc.title = "Public Key";
+		this.add_desc.rows = 1;
 		if (identities.share_info != null) {
 			var share_info_o = identities.share_info["identity_share"];
 			this.add_desc.innerHTML = share_info_o["pubkey"];
@@ -156,10 +163,46 @@ var Identities = function(db, change_dependencies) {
 		identities.share_info = JSON.parse(this.responseText);
 		identities.update_share_view();
 		document.getElementById("Identities_share_view").style.display = "flex";
+		contacts.update_selected(identities.identity_selected_id);
+	}
+	
+	this.on_migrate_key_response = function() {
+		var resp = JSON.parse(this.responseText);
+		document.getElementById(identities.widget.name + "_identity_migrate_key_" + resp["identity_id"]).disabled = false;
+	}
+	
+	this.on_identity_delete_response = function() {
+		var resp = this.responseText;		
+		identities.update_identities_list();
+	}
+	
+	this.toggle_secondary_controls = function() {
+		for (var k in identities.identities_json["identities"]) {
+			if (identities.identities_json["identities"].hasOwnProperty(k)) {
+				var migrate_key_button = document.getElementById(this.widget.name + "_identity_migrate_key_" + k);
+				if (migrate_key_button.style.display == "none") {
+					migrate_key_button.style.display = "inline";
+				} else {
+					migrate_key_button.style.display = "none";
+				}
+				var delete_button = document.getElementById(this.widget.name + "_identity_delete_" + k);
+				if (delete_button.style.display == "none") {
+					delete_button.style.display = "inline";
+				} else {
+					delete_button.style.display = "none";
+				}
+			}
+		}
+		if (this.packetset_toggle_btn.style.display == "none") {
+			this.packetset_toggle_btn.style.display = "inline";
+		} else {
+			this.packetset_toggle_btn.style.display = "none";
+		}
 	}
 	
 	this.update_identities_view = function() {
 		this.identities_view.innerHTML = "";
+		this.packetset_toggle_btn.style.display = "none";
 		
 		if (identities.identities_json != null) {
 			for (var k in identities.identities_json["identities"]) {
@@ -186,56 +229,30 @@ var Identities = function(db, change_dependencies) {
 					this.obj.changed_f();
 				};
 				
-				var status_container = document.createElement("span");
-				status_container.className = "container";
-				identity.appendChild(status_container);
-				
-				/* change css */
-				var sending = document.createElement("span");
-				sending.id = this.widget.name + "_identity_" + element["id"] + "_sending";
-				sending.appendChild(document.createTextNode("\u2197"));
-				sending.backgroundColor = "#eeeeee";
-				status_container.appendChild(sending);
-				
-				var receiving = document.createElement("span");
-				receiving.id = this.widget.name + "_identity_" + element["id"] + "_receiving";
-				receiving.appendChild(document.createTextNode("\u2199"));
-				receiving.backgroundColor = "#eeeeee";
-				status_container.appendChild(receiving);
-				
 				var received = document.createElement("span");
 				received.id =  this.widget.name + "_identity_" + element["id"] + "_received";
 				received.appendChild(document.createTextNode("\u2731"))
 				received.style.visibility = "hidden";
-				received.backgroundColor = "#eeeeee";
-				status_container.appendChild(received);
-				
-				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_OUT_PENDING") &&
-					identities.identities_json["identities"][element["id"]]["PS_OUT_PENDING"] === true) {
-						sending.style.backgroundColor = "#0000ff";
-						sending.style.color = "#ffffff";
-				} else {
-						sending.style.backgroundColor = "#eeeeee";
-						sending.style.color = "#000000";
-				}
-				
-				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_IN_PENDING") &&
-					identities.identities_json["identities"][element["id"]]["PS_IN_PENDING"] === true) {
-						receiving.style.backgroundColor = "#00ff00";
-				} else {
-						receiving.style.backgroundColor = "#eeeeee";
-				}
+				received.className = "status_msg_received";
+				name.appendChild(received);
 
-				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("PS_IN_COMPLETE") &&
-					identities.identities_json["identities"][element["id"]]["PS_IN_COMPLETE"] === true) {
+				if (identities.identities_json["identities"][element["id"]].hasOwnProperty("new_msg") &&
+					identities.identities_json["identities"][element["id"]]["new_msg"] === true) {
 						if (element["id"] == this.identity_selected_id) {
-							identities.identities_json["identities"][element["id"]]["PS_IN_COMPLETE"] = false;
+							identities.identities_json["identities"][element["id"]]["new_msg"] = false;
 						} else {
 							received.style.visibility = "visible";
 						}
 				}
-				/* ------- */
+
+				var status_container = document.createElement("span");
+				status_container.className = "container";
+				identity.appendChild(status_container);
 				
+				if (this.identities_json != null) {
+					status_container.appendChild(identities.identities_json["identities"][element["id"]]["status_msgbox"].elem);
+					identities.identities_json["identities"][element["id"]]["status_msgbox"].elem.className = "statusbox";
+				}
 				
 				var share_controls = document.createElement("div");
 				share_controls.className = "id_controls";
@@ -278,7 +295,11 @@ var Identities = function(db, change_dependencies) {
 				share_to_name_btn.onclick = function() {
 					var share_to_name = document.getElementById(this.base_name + "_share_to_name");
 					share_to_name.style.display = "none";
-					this.style.display = "none";
+					
+					var cancel_share_btn = document.getElementById(this.base_name + "_cancel_share_btn");
+					cancel_share_btn.style.display = "none";
+					
+					this.style.display = "none";				
 					this.obj.db.query_post("identity/share?identity_id=" + this.identity_id + "&name_to=" + document.getElementById(this.base_name + "_share_to_name").value, "{ }", identities.on_identity_share_response);
 					var share_btn = document.getElementById(this.base_name);
 					share_btn.style.display = "inline";
@@ -302,6 +323,38 @@ var Identities = function(db, change_dependencies) {
 					this.style.display = "none";
 				}
 				share_controls.appendChild(share_btn);
+					
+				var migrate_pubkey_btn = document.createElement("button");
+				migrate_pubkey_btn.id = this.widget.name + "_identity_migrate_key_" + element["id"];
+				migrate_pubkey_btn.obj = this;
+				migrate_pubkey_btn.identity_id = element["id"];
+				migrate_pubkey_btn.innerHTML = "&#128472;&#128273;";
+				migrate_pubkey_btn.title = "Migrate key";
+				migrate_pubkey_btn.style.display = "none";
+				migrate_pubkey_btn.onclick = function() {
+					this.disabled = true;
+					this.obj.db.query_post("identity/migrate_key?identity_id=" + this.identity_id, "{ }", identities.on_migrate_key_response);
+				}
+				share_controls.appendChild(migrate_pubkey_btn);
+				
+				var delete_identity = document.createElement("button");
+				delete_identity.id = this.widget.name + "_identity_delete_" + element["id"];
+				delete_identity.obj = this;
+				delete_identity.identity_id = element["id"];
+				delete_identity.identity_name = element["name"];
+				delete_identity.innerHTML = "&#128465;";
+				delete_identity.title = "Delete identity";
+				delete_identity.style.display = "none";
+				delete_identity.onclick = function() {
+					this.disabled = true;
+					var r = confirm("Delete identity \""+ this.identity_name +"\" and all contacts irreversibly?");
+					if (r == true) {
+						this.obj.db.query_post("identity/delete?identity_id=" + this.identity_id, "{ }", identities.on_identity_delete_response);
+					} else {
+						
+					}
+				}
+				share_controls.appendChild(delete_identity);
 				
 				this.identities_view.appendChild(identity);
 			};
@@ -342,6 +395,7 @@ var Identities = function(db, change_dependencies) {
 			if (json_res["identities"].hasOwnProperty(elem)) {
 				if (!identities.identities_json["identities"].hasOwnProperty(json_res["identities"][elem]["id"])) {
 					identities.identities_json["identities"][json_res["identities"][elem]["id"]] = json_res["identities"][elem];
+					identities.identities_json["identities"][json_res["identities"][elem]["id"]]["status_msgbox"] = new MessageBox("status" + "_" + json_res["identities"][elem]["id"]);
 				} else {
 					for (var k in json_res["identities"][elem]) {
 						if (json_res["identities"][elem].hasOwnProperty(k)) {
@@ -351,6 +405,27 @@ var Identities = function(db, change_dependencies) {
 				}
 			}
 		}
+		
+		for (var elem in identities.identities_json["identities"]) {
+			if (identities.identities_json["identities"].hasOwnProperty(elem)) {
+				var id_elem = identities.identities_json["identities"][elem];
+				var found = false;
+				for (var ids = 0; ids < json_res["identities"].length; ids++) {
+					if (json_res["identities"][ids]["id"] == id_elem["id"]) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					delete contacts.contacts_by_identity_id[id_elem["id"]];
+					delete identities.identities_json["identities"][id_elem["id"]];
+					if (id_elem["id"] == identities.identity_selected_id) {
+						identities.identity_selected_id = -1;
+						contacts.update_selected(identities.identity_selected_id);
+					}
+				}
+			}
+		}	
 		identities.changed_f();
 	}
 	
@@ -377,6 +452,13 @@ var Identities = function(db, change_dependencies) {
 			
 			if (this.identities_json != null) {
 				this.update_identities_view();
+			}
+		}
+		if (identities.identities_json != null) {
+			for (var k in identities.identities_json["identities"]) {
+				if (!identities.identities_json["identities"].hasOwnProperty(k)) continue;
+				var element = identities.identities_json["identities"][k];
+				element["status_msgbox"].update();
 			}
 		}
 	}

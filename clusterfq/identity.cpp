@@ -214,6 +214,43 @@ void identity_load_keys(struct identity* i, string base_dir) {
 	}
 }
 
+void identity_delete(unsigned int identity_id) {
+	struct identity* i = identity_get(identity_id);
+	
+	stringstream base_dir;
+	base_dir << "./identities/" << identity_id << "/";
+
+	for (int c = i->contacts.size() - 1; c >= 0; c--) {
+		contact_delete(&i->contacts[c], identity_id);
+		i->contacts.erase(i->contacts.begin() + c);
+	}
+	stringstream contacts_dir;
+	contacts_dir << base_dir.str() << "contacts/";
+	util_directory_delete(contacts_dir.str());
+
+	stringstream groups_dir;
+	groups_dir << base_dir.str() << "groups/";
+	util_directory_delete(groups_dir.str());
+
+	vector<string> base_files = util_file_get_all_names(base_dir.str(), 0, 0, false);
+	for (int i = 0; i < base_files.size(); i++) {
+		stringstream full_path;
+		full_path << base_dir.str() << base_files[i];
+
+		util_file_delete(full_path.str());
+	}
+	util_directory_delete(base_dir.str());
+
+	//TODO: memory cleanup
+
+	for (int i = 0; i < identities.size(); i++) {
+		if (identities[i].id == identity_id) {
+			identities.erase(identities.begin() + i);
+			break;
+		}
+	}
+}
+
 void identities_load() {
 	stringstream base_dir;
 	base_dir << "./identities/";
@@ -384,7 +421,8 @@ string identity_contact_list(unsigned int id) {
 			string gmt(asctime(gmtm));
 			gmt = util_trim(gmt, "\r\n\t ");
 
-			result << "\t\t\t\"last_seen\": \"" << gmt << " UTC" << "\"\n";
+			result << "\t\t\t\"last_seen\": \"" << gmt << " UTC" << "\",\n";
+			result << "\t\t\t\"address_available\": " << (i->contacts[c].address.length() > 0) << "\n";
 			result << "\t\t}";
 			if (c + 1 < i->contacts.size()) {
 				result << ",";
@@ -441,6 +479,21 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				string name = http_request_get_param(request_params, "name");
 				content = identity_share(identity_id, name);
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "migrate_key") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				struct identity* i = identity_get(identity_id);
+				identity_migrate_key(i, 2048);
+				stringstream content_ss;
+				content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
+				content = content_ss.str();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "delete") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				identity_delete(identity_id);
+				stringstream content_ss;
+				content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
+				content = content_ss.str();
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else {
 				*status_code = (char*)HTTP_RESPONSE_404;

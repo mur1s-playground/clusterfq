@@ -183,6 +183,13 @@ void util_file_write_binary(string filename, unsigned char* bin, size_t length) 
 #endif
 }
 
+void util_directory_delete(const string path) {
+#ifdef _WIN32
+	RemoveDirectoryA(path.c_str());
+#else
+	//TODO: do
+#endif
+}
 
 void util_directory_create(const string path) {
 #ifdef _WIN32
@@ -258,7 +265,7 @@ void util_file_get_all_names_inner(vector<string>* filenames, string fname, time
 	}
 }
 
-vector<string> util_file_get_all_names(const string path, time_t timerange_start, time_t timerange_end) {
+vector<string> util_file_get_all_names(const string path, time_t timerange_start, time_t timerange_end, bool timerange) {
 	vector<string> filenames = vector<string>();
 #ifdef _WIN32
 	WIN32_FIND_DATAA data;
@@ -272,8 +279,11 @@ vector<string> util_file_get_all_names(const string path, time_t timerange_start
 
 		} else {
 			string fname(data.cFileName);
-
-			util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+			if (timerange) {
+				util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+			} else {
+				filenames.push_back(fname);
+			}
 		}
 	} while (FindNextFileA(h, &data));
 	FindClose(h);
@@ -284,7 +294,12 @@ vector<string> util_file_get_all_names(const string path, time_t timerange_start
 		while ((ent = readdir(dir)) != NULL) {
 			if (strstr(ent->d_name, "..") != ent->d_name && strstr(ent->d_name, ".") != ent->d_name) {
 				string fname(ent->d_name);
-				util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+				if (timerange) {
+					util_file_get_all_names_inner(&filenames, fname, timerange_start, timerange_end);
+				} else {
+					filenames.push_back(fname);
+				}
+
 			}
 		}
 		closedir(dir);

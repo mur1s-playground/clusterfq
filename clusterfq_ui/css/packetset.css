@@ -37,6 +37,21 @@ div.ps_messagebox_item {
 	border-radius: 5px;
 }
 
+div.statusbox {
+	display: flex;
+	max-height: 20px;
+	overflow-x: hidden;
+}
+
+div.statusbox_item {
+	flex: 0 0 auto;
+	border: 1px solid black;
+	border-radius: 5px;
+	font-size: 8px;
+	margin: 1px;
+	padding: 1px;
+}
+
 div.ps_messagebox_item_sub_container {
 	display: table-row;
 }
@@ -89,3 +104,8 @@ span.ps_messagebox_item_content.COMPLETE {
 	background-color: #03fca9;
 }
 
+span.status_msg_received {
+	flex: 0 0 auto;
+	margin: 1px;
+	padding: 1px;
+}

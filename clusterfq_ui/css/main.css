@@ -87,6 +87,7 @@ span {
 }
 
 span.container {
+	width: 15%;
 	padding: 5px;
 	margin: 5px;
 	border-radius: 0px;
@@ -106,6 +107,11 @@ span.id_name {
 	
 	background-color: #ffffff;
 	color: #000000;
+}
+
+span.id_name.not_accessible_c {
+	background-color: #eeeeee;
+	color: #999999;
 }
 
 span.selected_i {

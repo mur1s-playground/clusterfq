@@ -7,7 +7,7 @@ var Contacts = function(db, change_dependencies) {
 	this.contacts_by_identity_id = {};
 	
 	this.widget = new Widget("Contacts");
-
+	
 	this.elem = this.widget.elem;
 	this.elem.style.display = "none";
 	
@@ -174,70 +174,49 @@ var Contacts = function(db, change_dependencies) {
 						contact.appendChild(name);
 						
 						contact.id = this.widget.name + "_contact_" + elem["id"];
-						contact.onclick = function() {
-							this.obj.selected_contact_id = this.contact_id;
-							chat.update_selected(this.identity_id, this.contact_id);
-							this.obj.changed_f();
-						};
 						
-						var status_container = document.createElement("span");
-						status_container.className = "container";
-						contact.appendChild(status_container);
+						if (elem["address_available"] == 0) {
+							name.className += " not_accessible_c";
+						} else {
+							contact.onclick = function() {
+								this.obj.selected_contact_id = this.contact_id;
+								chat.update_selected(this.identity_id, this.contact_id);
+								this.obj.changed_f();
+							};
+						}
 						
-						/* change css */
-						var sending = document.createElement("span");
-						sending.backgroundColor = "#eeeeee";
-						sending.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_sending";
-						sending.appendChild(document.createTextNode("\u2197"));
-						status_container.appendChild(sending);
-				
-						var receiving = document.createElement("span");
-						receiving.backgroundColor = "#eeeeee";
-						receiving.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_receiving";
-						receiving.appendChild(document.createTextNode("\u2199"));
-						status_container.appendChild(receiving);
-				
 						var received = document.createElement("span");
-						received.backgroundColor = "#eeeeee";
 						received.id = this.widget.name + "_contact_" + el["identity_id"] + "_" + elem["id"] + "_received";
 						received.appendChild(document.createTextNode("\u2731"))
 						received.style.visibility = "hidden";
-						status_container.appendChild(received);
+						received.className = "status_msg_received";
+						name.appendChild(received);
 
-						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_OUT_PENDING") && 
-							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_OUT_PENDING"] === true) {
-								sending.style.backgroundColor = "#0000ff";
-								sending.style.color = "#eeeeee";
-						} else {
-								sending.style.backgroundColor = "#eeeeee";
-								sending.style.color = "#000000";
-						}
-
-						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_IN_PENDING") &&
-							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_PENDING"] === true) {
-								receiving.style.backgroundColor = "#00ff00";
-						} else {
-								receiving.style.backgroundColor = "#eeeeee";
-						}
-
-						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("PS_IN_COMPLETE") &&
-							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_COMPLETE"] === true) {
+						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("new_msg") &&
+							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["new_msg"] === true) {
 								if (contact.contact_id == this.selected_contact_id) {
-									contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["PS_IN_COMPLETE"] = false;
+									contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["new_msg"] = false;
 								} else {
 									received.style.visibility = "visible";
 								}
 						}
-						/* --------- */
+
+						var status_container = document.createElement("span");
+						status_container.className = "container";
+						contact.appendChild(status_container);
+						
+						status_container.appendChild(contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["status_msgbox"].elem);
+						contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["status_msgbox"].elem.className = "statusbox";
 						
 						this.space_fill = document.createElement("div");
-						this.space_fill.className = "id_controls adjustscroll";
+						this.space_fill.className = "id_controls";
 						contact.appendChild(this.space_fill);
 						
 						
 						this.contacts_view.appendChild(contact);
 					};
-					}		
+					break;
+					}
 				}
 			}
 		}
@@ -276,6 +255,7 @@ var Contacts = function(db, change_dependencies) {
 			var c_id = element["id"];
 			if (!contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"].hasOwnProperty(c_id)) {
 				contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][c_id] = element;
+				contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][c_id]["status_msgbox"] = new MessageBox("status" + "_" + json_res["identity_id"] + "_" + c_id);
 			} else {
 				for (var prop in element) {
 					if (element.hasOwnProperty(prop)) {
@@ -284,6 +264,8 @@ var Contacts = function(db, change_dependencies) {
 				}
 			}
 		});
+		
+		contacts.update_contacts_view();
 	}
 
 	this.update = function() {
@@ -309,6 +291,19 @@ var Contacts = function(db, change_dependencies) {
 			}
 			
 			this.changed = false;
+		}
+		
+		if (this.contacts_by_identity_id != null) {
+			for(var element in this.contacts_by_identity_id) {
+				if (this.contacts_by_identity_id.hasOwnProperty(element)) {
+					var el = this.contacts_by_identity_id[element];
+					for (var i_id in el["contacts"]) {
+						if (!el["contacts"].hasOwnProperty(i_id)) continue;
+						var elem = el["contacts"][i_id];
+						elem["status_msgbox"].update();
+					}
+				}
+			}
 		}
 	}
 }

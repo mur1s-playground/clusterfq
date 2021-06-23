@@ -65,8 +65,81 @@ var Packetset = function(db, change_dependencies) {
 			
 			if (p_state == "PS_OUT_COMPLETE" || p_state == "PS_IN_COMPLETE") removable_msg = true;
 			
-			var frames = 500 + 100 * state_num;
+			var frames = 100 * state_num;
+
+			var state_arr = p_state.split("_");
+			var state_txt = "";
+			if (state_arr[1] == "IN") {
+				state_txt = "\u2199";
+			} else {
+				state_txt = "\u2197";
+			}
+			if (state_arr[2] == "PENDING") {
+				state_txt += "\u231b";
+			} else if (state_arr[2] == "COMPLETE") {
+				state_txt += "\u2713";
+			} else { //CREATED
+				state_txt += "\u25ef";
+			}
 			
+			var mt_arr = m_type.split("_");
+			var mt_text = "";
+			if (mt_arr[1] == "ESTABLISH") {
+				mt_text = "&#128279;";
+			} else if (mt_arr[1] == "MIGRATE") {
+				mt_text = "&#128472;";
+			} else if (mt_arr[1] == "DROP") {
+				mt_text = "&#128465;";
+			} else if (mt_arr[1] == "MESSAGE") {
+				mt_text = "\u2709";
+			} else if (mt_arr[1] == "FILE") {
+				mt_text = "&#128462;";
+			} else if (mt_arr[1] == "RECEIPT") {
+				mt_text = "&#129534;";
+			} else if (mt_arr[1] == "UNKNOWN") {
+				mt_text = "&#92228;";
+			}
+			if (mt_arr.length == 3) {
+				if (mt_arr[2] == "CONTACT") {
+					mt_text += "&#129485;";
+				} else if (mt_arr[2] == "SESSION") {
+					mt_text += "&#128272;";
+				} else if (mt_arr[2] == "PUBKEY") {
+					mt_text += "&#128273;";
+				} else if (mt_arr[2] == "ADDRESS") {
+					mt_text += "\u2316";
+				} else if (mt_arr[2] == "COMPLETE") {
+					mt_text += "\u2713";
+				}
+			}
+
+			/* IDENTITY & CONTACT STATUS BOX */
+			var status_msgbox_item_identity = document.createElement("div");
+			status_msgbox_item_identity.innerHTML = state_txt + " " + mt_text;
+			status_msgbox_item_identity.title = p_state + " " + m_type;
+
+			var status_msgbox_item_contact = document.createElement("div");
+			status_msgbox_item_contact.innerHTML = state_txt + " " + mt_text;
+			status_msgbox_item_contact.title = p_state + " " + m_type;
+
+			identities.identities_json["identities"][element["identity_id"]]["status_msgbox"].message_add(status_msgbox_item_identity, frames, "statusbox_item", element["hash_id"], removable_msg);
+			contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["status_msgbox"].message_add(status_msgbox_item_contact, frames, "statusbox_item", element["hash_id"], removable_msg);
+			
+			if (element["identity_id"] == identities.identity_selected_id) {
+				update_contacts_view = true;
+			}
+
+			/* MARK IDENTITY/CONTACT HAS RECEIVED NEW MESSAGE */
+			if (p_state == "PS_IN_COMPLETE") {
+				if (m_type == "MT_MESSAGE" || m_type == "MT_FILE") {
+					contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["new_msg"] = true;
+					if (identities.identity_selected_id != element["identity_id"]) {
+						identities.identities_json["identities"][element["identity_id"]]["new_msg"] = true;
+					}
+				}
+			}
+
+			/* PACKETSET DEBUG OUTPUT */
 			var message_box_elem = document.createElement("div");
 			
 			//IDENTITY
@@ -115,20 +188,6 @@ var Packetset = function(db, change_dependencies) {
 			
 			var message_box_elem_state = document.createElement("span");
 			
-			var state_arr = p_state.split("_");
-			var state_txt = "";
-			if (state_arr[1] == "IN") {
-				state_txt = "\u2199";
-			} else {
-				state_txt = "\u2197";
-			}
-			if (state_arr[2] == "PENDING") {
-				state_txt += " \u231b";
-			} else if (state_arr[2] == "COMPLETE") {
-				state_txt += " \u2713";
-			} else { //CREATED
-				state_txt += " \u25ef";
-			}
 			message_box_elem_state.appendChild(document.createTextNode(state_txt));
 			message_box_elem_state.title = "Direction: " + state_arr[1] + ", Status: " + state_arr[2];
 			message_box_elem_state.className = "ps_messagebox_item_content " + state_arr[2];
@@ -147,37 +206,6 @@ var Packetset = function(db, change_dependencies) {
 			message_box_msg_type_container.appendChild(message_box_elem_msg_type_lbl)
 			
 			var message_box_elem_msg_type = document.createElement("span");
-			
-			var mt_arr = m_type.split("_");
-			var mt_text = "";
-			if (mt_arr[1] == "ESTABLISH") {
-				mt_text = "&#128279;";
-			} else if (mt_arr[1] == "MIGRATE") {
-				mt_text = "&#128472;";
-			} else if (mt_arr[1] == "DROP") {
-				mt_text = "&#128465;";
-			} else if (mt_arr[1] == "MESSAGE") {
-				mt_text = "\u2709";
-			} else if (mt_arr[1] == "FILE") {
-				mt_text = "&#128462;";
-			} else if (mt_arr[1] == "RECEIPT") {
-				mt_text = "&#129534;";
-			} else if (mt_arr[1] == "UNKNOWN") {
-				mt_text = "&#92228;";
-			}
-			if (mt_arr.length == 3) {
-				if (mt_arr[2] == "CONTACT") {
-					mt_text += " &#129485;";
-				} else if (mt_arr[2] == "SESSION") {
-					mt_text += " &#128272;";
-				} else if (mt_arr[2] == "PUBKEY") {
-					mt_text += " &#128273;";
-				} else if (mt_arr[2] == "ADDRESS") {
-					mt_text += " \u2316";
-				} else if (mt_arr[2] == "COMPLETE") {
-					mt_text += " \u2713";
-				}
-			}
 			message_box_elem_msg_type.title = m_type;
 			message_box_elem_msg_type.innerHTML = mt_text;
 			message_box_elem_msg_type.className = "ps_messagebox_item_content";
@@ -185,30 +213,9 @@ var Packetset = function(db, change_dependencies) {
 			
 			message_box_elem.appendChild(message_box_msg_type_container);
 			
-			packetset.messagebox.message_add(message_box_elem, frames, "ps_messagebox_item", element["hash_id"], removable_msg);
-
-			if (element["identity_id"] == identities.identity_selected_id) {
-				update_contacts_view = true;
-			}
-			if (p_state == "PS_OUT_PENDING") {
-				identities.identities_json["identities"][element["identity_id"]]["PS_OUT_PENDING"] = true;
-				contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["PS_IN_PENDING"] = true;
-			} else if (p_state == "PS_OUT_COMPLETE") {
-				identities.identities_json["identities"][element["identity_id"]]["PS_OUT_PENDING"] = false;
-				contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["PS_IN_PENDING"] = false;
-			} else if (p_state == "PS_IN_PENDING") {
-				identities.identities_json["identities"][element["identity_id"]]["PS_IN_PENDING"] = true;
-				contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["PS_OUT_PENDING"] = true;
-			} else if (p_state == "PS_IN_COMPLETE") {
-				identities.identities_json["identities"][element["identity_id"]]["PS_IN_PENDING"] = false;
-				contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["PS_OUT_PENDING"] = false;
-				if (m_type == "MT_MESSAGE" || m_type == "MT_FILE") {
-					contacts.contacts_by_identity_id[element["identity_id"]]["contacts"][element["contact_id"]]["PS_IN_COMPLETE"] = true;
-					if (identities.identity_selected_id != element["identity_id"]) {
-						identities.identities_json["identities"][element["identity_id"]]["PS_IN_COMPLETE"] = true;
-					}
-				}
-			}
+			packetset.messagebox.message_add(message_box_elem, 500 + frames, "ps_messagebox_item", element["hash_id"], removable_msg);
+			/* END PACKETSET DEBUG OUTPUT */
+			
 			state_num++;
 		});
 		

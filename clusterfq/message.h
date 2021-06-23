@@ -40,8 +40,6 @@ struct message_meta {
 	unsigned int			packetset_id;
 };
 
-
-
 void message_check_establish_contact(struct identity* i, struct contact* c);
 void message_check_session_key(struct identity* i, struct contact* c);
 

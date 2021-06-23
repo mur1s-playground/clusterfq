@@ -55,6 +55,8 @@ struct contact* contact_get(vector<struct contact> *contacts, unsigned int id);
 void contact_save(struct contact* c, string path);
 void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, string path);
 
+void contact_delete(struct contact* c, unsigned int identity_id);
+
 /* LOAD/SAVE SUB */
 void contact_identity_key_id_save(struct contact* c, unsigned int identity_id);
 void contact_identity_key_id_save(struct contact* c, string path);

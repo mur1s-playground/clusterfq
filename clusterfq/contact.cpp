@@ -149,6 +149,44 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 	mutex_init(&c->outgoing_messages_lock);
 }
 
+void contact_delete(struct contact* c, unsigned int identity_id) {
+	stringstream path;
+	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+
+	stringstream path_in;
+	path_in << path.str() << "in/";
+	vector<string> files_in = util_file_get_all_names(path_in.str(), 0, 0, false);
+	for (int i = 0; i < files_in.size(); i++) {
+		stringstream full_path;
+		full_path << path_in.str() << files_in[i];
+
+		util_file_delete(full_path.str());
+	}
+	util_directory_delete(path_in.str());
+
+	stringstream path_out;
+	path_out << path.str() << "out/";
+	vector<string> files_out = util_file_get_all_names(path_out.str(), 0, 0, false);
+	for (int i = 0; i < files_out.size(); i++) {
+		stringstream full_path;
+		full_path << path_out.str() << files_out[i];
+
+		util_file_delete(full_path.str());
+	}
+	util_directory_delete(path_out.str());
+	
+	vector<string> files_base = util_file_get_all_names(path.str(), 0, 0, false);
+	for (int i = 0; i < files_base.size(); i++) {
+		stringstream full_path;
+		full_path << path.str() << files_base[i];
+
+		util_file_delete(full_path.str());
+	}
+	util_directory_delete(path.str());
+
+	//TODO: memory cleanup
+}
+
 void contact_identity_key_id_save(struct contact* c, unsigned int identity_id) {
 	stringstream path;
 	path << "./identities/" << identity_id << "/contacts/" << c->id << "/";
