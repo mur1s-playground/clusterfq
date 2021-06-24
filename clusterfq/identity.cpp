@@ -261,7 +261,9 @@ void identities_load() {
 		id_path << base_dir.str() << f_id << "/";
 
 		if (util_path_exists(id_path.str())) {
-			identity_load(f_id);
+			if (identity_get(f_id) == nullptr) {
+				identity_load(f_id);
+			}
 		}
 		f_id++;
 		//TODO: improve
@@ -316,6 +318,19 @@ struct identity *identity_get(unsigned int id) {
 		}
 	}
 	return nullptr;
+}
+
+void identity_contact_delete(unsigned int id, unsigned int c_id) {
+	struct identity* i = identity_get(id);
+	if (i != nullptr) {
+		for (int c = 0; c < i->contacts.size(); c++) {
+			if (i->contacts[c].id == c_id) {
+				contact_delete(&i->contacts[c], i->id);
+				i->contacts.erase(i->contacts.begin() + c);
+				break;
+			}
+		}
+	}
 }
 
 void identity_contact_add(unsigned int id, struct contact* c) {
@@ -475,6 +490,14 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 				struct contact c;
 				contact_create(&c, name, pubkey, address);
 				identity_contact_add(identity_id, &c);
+			} else if (strstr(request_action, "contact_delete") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				identity_contact_delete(identity_id, contact_id);
+				stringstream content_ss;
+				content_ss << "{\n\t\"identity_id\": " << identity_id << ",\n\t\"contact_id\": " << contact_id << "}\n";
+				content = content_ss.str();
+				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "share") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				string name = http_request_get_param(request_params, "name");
@@ -487,6 +510,16 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 				stringstream content_ss;
 				content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
 				content = content_ss.str();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "remove_obsolete_keys") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				struct identity* i = identity_get(identity_id);
+				if (i != nullptr) {
+					identity_remove_obsolete_keys(i);
+					stringstream content_ss;
+					content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
+					content = content_ss.str();
+				}
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "delete") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));

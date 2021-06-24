@@ -127,6 +127,8 @@ var Chat = function(db, change_dependencies) {
 		var resp = JSON.parse(this.responseText);
 		var most_recent = 0;
 		
+		if (!resp.hasOwnProperty("identity_id")) return;
+		
 		for (var prop in chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]]["chat"]) {
 			var rsp = chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]];
 			chat.update_chat_msg(rsp, prop);

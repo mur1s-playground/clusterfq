@@ -459,18 +459,12 @@ void packetset_destroy(struct packetset* ps) {
 	free(ps->chunks_sent_ct);
 }
 
-string packetset_state() {
-	for (int i = 0; i < identities.size(); i++) {
-
-	}
-}
-
 string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
 	if (request_path->size() > 1) {
 		request_action = (*request_path)[1].c_str();
-
+		
 		if (sirt == SIRT_GET) {
 			if (strstr(request_action, "poll") == request_action) {
 				content = packetset_static_get_state_infos();

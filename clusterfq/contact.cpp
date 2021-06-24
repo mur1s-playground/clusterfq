@@ -809,7 +809,9 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from, time_t to) {
 	struct identity* id = identity_get(identity_id);
+	if (id == nullptr) return "{ }";
 	struct contact* c = contact_get(&id->contacts, contact_id);
+	if (c == nullptr) return "{ }";
 
 	stringstream filename_base_in;
 	filename_base_in << "./identities/" << id->id << "/contacts/" << c->id << "/in/";

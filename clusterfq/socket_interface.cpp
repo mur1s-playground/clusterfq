@@ -166,6 +166,13 @@ void socket_interface_process_client(void* param) {
                         content = contact_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     } else if (strstr(rp_0, "message") == rp_0) {
                         content = message_interface(sirt, &request_path, &params, post_content, content_length, status_code);
+                    } else if(strstr(rp_0, "exit") == rp_0) {
+#ifdef _WIN32
+
+#else
+                        close(socket_interface_static.tcp_server.socket);
+#endif
+                        exit(0);
                     }
                 }
 

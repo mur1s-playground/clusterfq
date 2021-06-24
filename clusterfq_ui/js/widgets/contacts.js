@@ -128,6 +128,29 @@ var Contacts = function(db, change_dependencies) {
 		this.obj.toggle_search_input();
 	}
 	this.menu.appendChild(this.search_btn);
+	
+	this.settings_button = document.createElement("button");
+	this.settings_button.widget_name = this.widget.name;
+	this.settings_button.appendChild(document.createTextNode("\u2630"));
+	this.settings_button.onclick = function() {
+		contacts.toggle_secondary_controls();
+	}
+	this.menu.appendChild(this.settings_button);
+	
+	this.toggle_secondary_controls = function() {
+		if (contacts.contacts_by_identity_id.hasOwnProperty(contacts.selected_identity_id)) {
+			for (var k in contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"]) {
+				if (contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"].hasOwnProperty(k)) {
+					 var delete_button = document.getElementById(contacts.widget.name + "_contact_delete_" + contacts.selected_identity_id + "_" + k);
+					 if (delete_button.style.display = "none") {
+						 delete_button.style.display = "inline";
+					 } else {
+						 delete_button.style.display = "none";
+					 }
+				}
+			}
+		}
+	}
 
 	this.widget.content.appendChild(this.menu);
 
@@ -145,6 +168,10 @@ var Contacts = function(db, change_dependencies) {
 	this.contacts_view = document.createElement("div");
 	this.contacts_view.id = this.widget.name + "_contacts_view";
 	this.contacts_view.className = "contacts_list";
+	
+	this.on_contact_delete_response = function() {
+		contacts.changed_f();
+	}
 
 	this.update_contacts_view = function() {
 		this.contacts_view.innerHTML = "";
@@ -210,6 +237,27 @@ var Contacts = function(db, change_dependencies) {
 						
 						this.space_fill = document.createElement("div");
 						this.space_fill.className = "id_controls";
+						
+						var delete_contact = document.createElement("button");
+						delete_contact.id = this.widget.name + "_contact_delete_" + el["identity_id"] + "_" + elem["id"];
+						delete_contact.obj = this;
+						delete_contact.identity_id = el["identity_id"];
+						delete_contact.contact_id = elem["id"];
+						delete_contact.contact_name = elem["name"];
+						delete_contact.innerHTML = "&#128465;";
+						delete_contact.title = "Delete contact";
+						delete_contact.style.display = "none";
+						delete_contact.onclick = function() {
+							this.disabled = true;
+							var r = confirm("Delete contact \""+ this.contact_name +"\" irreversibly?");
+							if (r == true) {
+								this.disabled = true;
+								this.obj.db.query_post("identity/contact_delete?identity_id=" + this.identity_id + "&contact_id=" + this.contact_id, "{ }", contacts.on_contact_delete_response);
+							} else {
+							}
+						}
+						this.space_fill.appendChild(delete_contact);
+						
 						contact.appendChild(this.space_fill);
 						
 						
@@ -265,7 +313,33 @@ var Contacts = function(db, change_dependencies) {
 			}
 		});
 		
-		contacts.update_contacts_view();
+		var deletion = false;
+		for (var elem in contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"]) {
+			if (contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"].hasOwnProperty(elem)) {
+				var contact_elem = contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][elem];
+				var found = false;
+				for (var ids = 0; ids < json_res["contacts"].length; ids++) {
+					if (json_res["contacts"][ids]["id"] == contact_elem["id"]) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					deletion = true;
+					delete contacts.contacts_by_identity_id[json_res["identity_id"]]["contacts"][contact_elem["id"]];
+					if (contacts.selected_contact_id == contact_elem["id"]) {
+						contacts.selected_contact_id = -1;
+						chat.update_selected(json_res["identity_id"], -1);
+					}
+				}
+			}
+		}	
+		
+		if (deletion) {
+			contacts.changed_f();
+		} else {
+			contacts.update_contacts_view();
+		}
 	}
 
 	this.update = function() {

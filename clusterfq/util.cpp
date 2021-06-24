@@ -187,7 +187,7 @@ void util_directory_delete(const string path) {
 #ifdef _WIN32
 	RemoveDirectoryA(path.c_str());
 #else
-	//TODO: do
+	rmdir(path.c_str());
 #endif
 }
 

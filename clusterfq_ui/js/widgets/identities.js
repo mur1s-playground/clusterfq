@@ -48,6 +48,20 @@ var Identities = function(db, change_dependencies) {
 		}
 	}
 	
+	this.on_exit_response = function() {
+		
+	}
+	
+	this.exit_btn = document.createElement("button");
+	this.exit_btn.obj = this;
+	this.exit_btn.style.display = "none";
+	this.exit_btn.id = this.widget.name + "_exit_button";
+	this.exit_btn.innerHTML = "&#128682;";
+	this.exit_btn.title = "Exit";
+	this.exit_btn.onclick = function() {
+		this.obj.db.query_post("exit", "{ }", identities.on_identity_share_response);
+	}
+	
 	this.settings_button = document.createElement("button");
 	this.settings_button.widget_name = this.widget.name;
 	this.settings_button.appendChild(document.createTextNode("\u2630"));
@@ -97,6 +111,7 @@ var Identities = function(db, change_dependencies) {
 	this.menu.appendChild(this.add_view);
 	this.menu.appendChild(this.add_btn);
 	this.menu.appendChild(this.packetset_toggle_btn);
+	this.menu.appendChild(this.exit_btn);
 	this.menu.appendChild(this.settings_button);
 	
 	
@@ -171,6 +186,11 @@ var Identities = function(db, change_dependencies) {
 		document.getElementById(identities.widget.name + "_identity_migrate_key_" + resp["identity_id"]).disabled = false;
 	}
 	
+	this.on_remove_obsolete_keys_response = function() {
+		var resp = JSON.parse(this.responseText);
+		document.getElementById(identities.widget.name + "_identity_remove_obsolete_keys_" + resp["identity_id"]).disabled = false;
+	}
+	
 	this.on_identity_delete_response = function() {
 		var resp = this.responseText;		
 		identities.update_identities_list();
@@ -185,6 +205,12 @@ var Identities = function(db, change_dependencies) {
 				} else {
 					migrate_key_button.style.display = "none";
 				}
+				var remove_obsolete_button = document.getElementById(this.widget.name + "_identity_remove_obsolete_keys_" + k);
+				if (remove_obsolete_button.style.display == "none") {
+					remove_obsolete_button.style.display = "inline";
+				} else {
+					remove_obsolete_button.style.display = "none";
+				}
 				var delete_button = document.getElementById(this.widget.name + "_identity_delete_" + k);
 				if (delete_button.style.display == "none") {
 					delete_button.style.display = "inline";
@@ -198,11 +224,17 @@ var Identities = function(db, change_dependencies) {
 		} else {
 			this.packetset_toggle_btn.style.display = "none";
 		}
+		if (this.exit_btn.style.display == "none") {
+			this.exit_btn.style.display = "inline";
+		} else {
+			this.exit_btn.style.display = "none";
+		}
 	}
 	
 	this.update_identities_view = function() {
 		this.identities_view.innerHTML = "";
 		this.packetset_toggle_btn.style.display = "none";
+		this.exit_btn.style.display = "none";
 		
 		if (identities.identities_json != null) {
 			for (var k in identities.identities_json["identities"]) {
@@ -336,6 +368,19 @@ var Identities = function(db, change_dependencies) {
 					this.obj.db.query_post("identity/migrate_key?identity_id=" + this.identity_id, "{ }", identities.on_migrate_key_response);
 				}
 				share_controls.appendChild(migrate_pubkey_btn);
+				
+				var remove_obsolete_btn = document.createElement("button");
+				remove_obsolete_btn.id = this.widget.name + "_identity_remove_obsolete_keys_" + element["id"];
+				remove_obsolete_btn.obj = this;
+				remove_obsolete_btn.identity_id = element["id"];
+				remove_obsolete_btn.innerHTML = "&#128465;&#128273;";
+				remove_obsolete_btn.title = "Remove unused keys";
+				remove_obsolete_btn.style.display = "none";
+				remove_obsolete_btn.onclick = function() {
+					this.disabled = true;
+					this.obj.db.query_post("identity/remove_obsolete_keys?identity_id=" + this.identity_id, "{ }", identities.on_remove_obsolete_keys_response);
+				}
+				share_controls.appendChild(remove_obsolete_btn);
 				
 				var delete_identity = document.createElement("button");
 				delete_identity.id = this.widget.name + "_identity_delete_" + element["id"];
