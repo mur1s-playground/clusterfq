@@ -1,6 +1,8 @@
 <html>
 	<head>
 		<title>clusterfq</title>
+		<link rel="icon" href="favicon.ico" type="image/x-icon"/>
+		<link rel="shortcut icon" href="favicon.ico" type="image/x-icon"/>
 		<link rel="stylesheet" href="css/main.css">
 		<link rel="stylesheet" href="css/packetset.css">
 		<script type="text/javascript" src="js/app.js"></script>
@@ -14,6 +16,9 @@
 		<script type="text/javascript" src="js/widgets/packetset.js"></script>
 	</head>
 	<body>
+	<div class="header">
+		<img src="img/clusterfq.svg" class="logo">
+	</div>
 	<div id="app"></div>
 	<div id="app_backend"></div>
 	
@@ -24,8 +29,7 @@
         
 		var app = new App(base_element);
 		
-		var messagebox = new MessageBox("main");
-        var db = new DB("Main", messagebox);
+        var db = new DB("Main");
 		
 		var messages = new Messages(db, null);
 		var chat = new Chat(db, [messages]);
@@ -34,11 +38,8 @@
 
 		var packetset = new Packetset(db, null);
 		
-		app.component_add(base_element, messagebox);
-		app.component_add(base_element, db);
 		app.component_add(base_element, identities);
 		app.component_add(base_element, contacts);
-		app.component_add(base_element, messages);
 		app.component_add(base_element, chat);
 		app.component_add(backend_element, packetset);
 

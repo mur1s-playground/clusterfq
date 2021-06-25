@@ -84,7 +84,7 @@ var Contacts = function(db, change_dependencies) {
 			if (this.contacts_view.childNodes.length > 1) {
 				for (var k = 0; k < this.contacts_view.childNodes.length; k++) {
 					if (this.contacts_view.childNodes[k].nodeName == "DIV") {
-						if (this.contacts_view.childNodes[k].childNodes[0].innerHTML.includes(this.search_input.value)) {
+						if (contacts.contacts_by_identity_id[identities.identity_selected_id]["contacts"][this.contacts_view.childNodes[k].id.split("_")[2]]["name"].includes(this.search_input.value)) {
 							this.contacts_view.childNodes[k].style.display = "flex";
 						} else {
 							this.contacts_view.childNodes[k].style.display = "none";
@@ -100,7 +100,7 @@ var Contacts = function(db, change_dependencies) {
 	this.search_input.id = this.widget_name + "_contact_search_input";
 	this.search_input.style.display = "none";
 	this.search_input.placeholder = "Search";
-	this.search_input.onkeyup = function() {
+	this.search_input.oninput = function() {
 		this.obj.on_search_input_change();
 	}
 	this.menu.appendChild(this.search_input);
@@ -142,7 +142,7 @@ var Contacts = function(db, change_dependencies) {
 			for (var k in contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"]) {
 				if (contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"].hasOwnProperty(k)) {
 					 var delete_button = document.getElementById(contacts.widget.name + "_contact_delete_" + contacts.selected_identity_id + "_" + k);
-					 if (delete_button.style.display = "none") {
+					 if (delete_button.style.display == "none") {
 						 delete_button.style.display = "inline";
 					 } else {
 						 delete_button.style.display = "none";
@@ -176,6 +176,7 @@ var Contacts = function(db, change_dependencies) {
 	this.update_contacts_view = function() {
 		this.contacts_view.innerHTML = "";
 		
+		var counter = 0;
 		if (this.contacts_by_identity_id != null && this.selected_identity_id > -1) {
 			for(var element in this.contacts_by_identity_id) {
 				if (this.contacts_by_identity_id.hasOwnProperty(element)) {
@@ -189,10 +190,12 @@ var Contacts = function(db, change_dependencies) {
 						contact.identity_id = el["identity_id"];
 						contact.contact_id = elem["id"];
 						contact.className = "id_container";
-						
+						if (counter % 2 == 0) contact.className += " even";
+
+
 						var name = document.createElement("span");
 						name.innerHTML = elem["name"];
-						name.className = "id_name";
+						name.className = "id_contact";
 						
 						if (elem["id"] == this.selected_contact_id) {
 							name.className += " selected_c";
@@ -262,15 +265,21 @@ var Contacts = function(db, change_dependencies) {
 						
 						
 						this.contacts_view.appendChild(contact);
+						counter++;
 					};
 					break;
 					}
 				}
 			}
 		}
+		
+		
 	}
-	
 	this.widget.content.appendChild(this.contacts_view);
+
+	this.contacts_view_footer = document.createElement("div");
+	this.contacts_view_footer.className = "id_container_footer";
+	this.widget.content.appendChild(this.contacts_view_footer);
 
 	this.changed = true;
 	

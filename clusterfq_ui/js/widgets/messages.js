@@ -117,8 +117,6 @@ var Messages = function(db, change_dependencies) {
 	
 	this.message_send_container.appendChild(this.message_send_btn);
 	
-	this.widget.content.appendChild(this.message_send_container);
-	
 	this.update_selected = function(identity_id, contact_id) {
 		messages.identity_id = identity_id;
 		messages.contact_id = contact_id;

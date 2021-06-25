@@ -21,7 +21,12 @@ var Chat = function(db, change_dependencies) {
 	this.chat = document.createElement("div");
 	this.chat.id = this.widget.name + "_chat";
 	
+	this.widget.content.appendChild(messages.message_send_container);
 	this.widget.content.appendChild(this.chat);
+
+	this.chat_footer = document.createElement("div");
+	this.chat_footer.className = "id_container_footer";
+	this.widget.content.appendChild(this.chat_footer);
 	
 	this.update_selected = function(identity_id, contact_id) {
 		chat.identity_id = identity_id;
@@ -55,6 +60,7 @@ var Chat = function(db, change_dependencies) {
 			
 			var datetime = document.createElement("span")
 			datetime.id = elem.id + "_datetime";
+			datetime.className = "datetime";
 			
 			var date = new Date(resp["chat"][prop]["time"] * 1000);
 			
@@ -99,8 +105,6 @@ var Chat = function(db, change_dependencies) {
 					msg.appendChild(msg_txt);
 				}
 			}
-				
-			datetime.style.backgroundColor = "#eeeeee";
 
 			if (source_is_identity) {
 				elem.className += " chat_out";

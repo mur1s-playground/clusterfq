@@ -141,7 +141,7 @@ void message_send_new_address(struct identity* i, struct contact* c) {
 }
 
 void message_send_migrate_key(struct identity* i, struct contact* c) {
-	message_check_session_key(i, c);
+	if (!message_check_pre(i, c)) return;
 
 	struct message_meta* mm = new struct message_meta();
 	mm->mt = MT_MIGRATE_PUBKEY;
@@ -250,16 +250,16 @@ void message_check_establish_contact(struct identity *i, struct contact *c) {
 	}
 }
 
-void message_check_pre(struct identity *i, struct contact *c) {
+bool message_check_pre(struct identity *i, struct contact *c) {
 	unsigned int identity_id = i->id;
 	if (c->address.length() == 0) {
 		std::cout << "no address available" << std::endl;
-		return;
+		return false;
 	}
 
 	if (c->pub_key.public_key_len == 0) {
 		std::cout << "no pubkey available" << std::endl;
-		return;
+		return false;
 	}
 
 	message_check_establish_contact(i, c);
@@ -268,13 +268,14 @@ void message_check_pre(struct identity *i, struct contact *c) {
 	if (time(nullptr) - c->address_rev_established > 120) {
 		message_send_new_address(i, c);
 	}
+	return true;
 }
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char *message, unsigned int msg_len) {
 	struct identity* i = identity_get(identity_id);
 	struct contact* c = contact_get(&i->contacts, contact_id);
 
-	message_check_pre(i, c);
+	if (!message_check_pre(i, c)) return;
 
 	struct message_meta *mm = new struct message_meta();
 	mm->mt = MT_MESSAGE;
@@ -302,13 +303,11 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 }
 
 void message_send_file(unsigned int identity_id, unsigned int contact_id, string name, unsigned char* data, unsigned int data_len) {
-	/*
-	unsigned char* file = (unsigned char*)malloc(1024 * 1024 * 10);
+	struct identity* i = identity_get(identity_id);
+	struct contact* c = contact_get(&i->contacts, contact_id);
 
-	size_t out_len = 0;
-	string filename((char*)path);
-	util_file_read_binary(filename, file, &out_len);
-	*/
+	if (!message_check_pre(i, c)) return;
+
 	size_t out_len = 0;
 
 	//insert linefeeds
@@ -338,11 +337,6 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, string
 	std::cout << "base64-hash: " << base_64 << std::endl;
 	free(hash);
 	free(base_64);
-
-	struct identity* i = identity_get(identity_id);
-	struct contact* c = contact_get(&i->contacts, contact_id);
-
-	message_check_pre(i, c);
 
 	struct message_meta* mm = new struct message_meta();
 	mm->mt = MT_FILE;

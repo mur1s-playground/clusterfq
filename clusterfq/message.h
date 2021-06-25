@@ -43,7 +43,7 @@ struct message_meta {
 void message_check_establish_contact(struct identity* i, struct contact* c);
 void message_check_session_key(struct identity* i, struct contact* c);
 
-void message_check_pre(struct identity* i, struct contact* c);
+bool message_check_pre(struct identity* i, struct contact* c);
 
 void message_send_receipt(struct identity* i, struct contact* c, struct packetset* ps, char* hash_id, unsigned int chunk_id);
 void message_send_migrate_key(struct identity* i, struct contact* c);

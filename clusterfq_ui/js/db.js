@@ -1,13 +1,10 @@
-var DB = function(db_name, message_box) {
+var DB = function(db_name) {
 	this.db_name = db_name
-	this.message_box = message_box;
 	
-	this.widget = new Widget("clusterfq");
+	this.widget = new Widget("DB");
 
 	this.elem = this.widget.elem;
 
-	//this.widget.content.appendChild(this.save_link);
-	
 	this.data = null;
 	
 	this.server_url = "http://localhost:8080/";
@@ -24,7 +21,6 @@ var DB = function(db_name, message_box) {
 		http.addEventListener("load", callback);
 		http.open("POST", this.server_url + url);
 		http.setRequestHeader("Content-Type", "application/json");
-		//http.setRequestHeader("Content-Length", json.length);
 		http.send(json);
 	}
 		

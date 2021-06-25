@@ -236,6 +236,7 @@ var Identities = function(db, change_dependencies) {
 		this.packetset_toggle_btn.style.display = "none";
 		this.exit_btn.style.display = "none";
 		
+		var counter = 0;
 		if (identities.identities_json != null) {
 			for (var k in identities.identities_json["identities"]) {
 				if (!identities.identities_json["identities"].hasOwnProperty(k)) continue;
@@ -243,6 +244,7 @@ var Identities = function(db, change_dependencies) {
 				var identity = document.createElement("div");
 				identity.id = this.widget.name + "_identity_" + element["id"];
 				identity.className = "id_container";
+				if (counter % 2 == 0) identity.className += " even";
 				
 				var name = document.createElement("span");
 				name.appendChild(document.createTextNode(element["name"]));
@@ -402,8 +404,13 @@ var Identities = function(db, change_dependencies) {
 				share_controls.appendChild(delete_identity);
 				
 				this.identities_view.appendChild(identity);
+				counter++;
 			};
 		}
+
+		this.identities_view_footer = document.createElement("div");
+		this.identities_view_footer.className = "id_container_footer";
+		this.identities_view.appendChild(this.identities_view_footer);
 	}
 	
 	this.widget.content.appendChild(this.identities_view);
@@ -487,6 +494,7 @@ var Identities = function(db, change_dependencies) {
 		if (this.changed) {
 			this.changed = false;
 			this.elem.style.display = "block";
+
 			
 			this.update_add_view();
 			
@@ -497,6 +505,9 @@ var Identities = function(db, change_dependencies) {
 			
 			if (this.identities_json != null) {
 				this.update_identities_view();
+				if (this.identity_selected_id > -1) {
+					this.widget.header_var.innerHTML = "(" + this.identities_json["identities"][this.identity_selected_id]["name"] + ")";
+				}
 			}
 		}
 		if (identities.identities_json != null) {
