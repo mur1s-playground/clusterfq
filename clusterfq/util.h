@@ -12,6 +12,7 @@ string& util_trim(string& str, const string& chars);
 
 char* util_issue_command(const char* cmd);
 
+void util_file_rename(const string from, const string to);
 void util_file_write_line(const string filepath, const char* line);
 void util_file_write_line(const string filepath, const string line);
 void util_file_write_lines(const string filepath, const vector<string> lines);

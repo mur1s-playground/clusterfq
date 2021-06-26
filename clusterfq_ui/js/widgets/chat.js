@@ -62,6 +62,15 @@ var Chat = function(db, change_dependencies) {
 			datetime.id = elem.id + "_datetime";
 			datetime.className = "datetime";
 			
+			var pending = document.createElement("span");
+			pending.id = elem.id + "_pending";
+			if (resp["chat"][prop]["pending"] == 1) {
+				pending.innerHTML = "\u231b";
+				datetime.id = elem.id + "_datetime_pending";
+				datetime.className += " pending";
+				pending.className = "datetime pm_0";
+			}
+							
 			var date = new Date(resp["chat"][prop]["time"] * 1000);
 			
 			var datetime_txt = null;
@@ -89,6 +98,9 @@ var Chat = function(db, change_dependencies) {
 				var fname = resp["chat"][prop]["file"];
 				var ext_a = fname.split(".");
 				var ext = ext_a[ext_a.length - 1];
+				if (ext == "pending") {
+					ext = ext_a[ext_a.length - 2];
+				}
 				if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "bmp" || ext == "gif") {
 					msg.style.textAlign = "center";
 					var ar = document.createElement("a");
@@ -111,6 +123,11 @@ var Chat = function(db, change_dependencies) {
 				
 				sender.className = "selected_i";
 				
+				if (resp["chat"][prop]["pending"] == 1) {
+					datetime.appendChild(document.createElement("br"));
+					datetime.appendChild(pending);
+				}
+				
 				elem.appendChild(datetime);
 				elem.appendChild(sender);
 				elem.appendChild(msg);
@@ -124,6 +141,25 @@ var Chat = function(db, change_dependencies) {
 				elem.appendChild(datetime);
 			}
 			chat.chat.prepend(elem);
+		} else {
+			if (resp["chat"][prop]["pending"] == 0) {
+				var delivered = document.getElementById(chat.widget.name + "_chat_" + prop + "_datetime");
+				if (delivered == undefined) {
+					var pending = document.getElementById(chat.widget.name + "_chat_" + prop + "_pending");
+					pending.id = chat.widget.name + "_chat_" + prop + "_datetime";
+					
+					var date = new Date(resp["chat"][prop]["time"] * 1000);
+			
+					var datetime_txt = null;
+					if (navigator.language === undefined) {
+						datetime_txt = document.createTextNode(date.toUTCString());
+					} else {
+						datetime_txt = document.createTextNode(date.toLocaleString(navigator.language));
+					}
+					pending.innerHTML = "";
+					pending.appendChild(datetime_txt);
+				}
+			}
 		}
 	}
 	

@@ -68,9 +68,10 @@ string http_request_get_param(vector<string>* params, string param) {
 }
 
 void socket_interface_process_client(void* param) {
+    struct socket_interface_process_params *sipp = (struct socket_interface_process_params*)param;
     std::cout << "processing request started\n";
 
-    struct Network* client = (struct Network*)param;
+    struct Network* client = sipp->client;
     char buffer;
 
     int last_char = 0;
@@ -90,14 +91,17 @@ void socket_interface_process_client(void* param) {
             util_sleep(16);
             continue;
         }
-        std::cout << buffer;
+        //std::cout << buffer;
         last_char = (int)buffer;
         linebuffer[char_ct] = buffer;
         char_ct++;
         if (last_char == 13) {
             line_len = char_ct;
 
+            //std::cout << "line captured\n";
+
             if (line_len == 2) {
+                //std::cout << "pre post line captured\n";
                 string request_url("/");
                 vector<string> request_path = vector<string>();
                 vector<string> params = vector<string>();
@@ -125,6 +129,7 @@ void socket_interface_process_client(void* param) {
                     }
 
                     const char *req_0 = request[0].c_str();
+                    std::cout << "req_0: " << req_0 << std::endl;
                     if (strstr(req_0, "GET") == req_0) {
                         sirt = SIRT_GET;
                     } else if (strstr(req_0, "POST") == req_0) {
@@ -138,15 +143,27 @@ void socket_interface_process_client(void* param) {
                             }
                         }
 
+                        //std::cout << "content len: " << content_length << std::endl;
                         if (content_length > 0) {
+                            //std::cout << "caputuring post\n";
                             post_content = (char*)malloc(content_length + 1);
-                            network_socket_read(client, &buffer, 1, nullptr, &out_len);
-                            for (int cc = 0; cc < content_length; cc++) {
+                            int tries = 0;
+                            do {
+                                if (tries > 0) util_sleep(16);
                                 network_socket_read(client, &buffer, 1, nullptr, &out_len);
+                                tries++;
+                            } while (out_len != 1);
+                            for (int cc = 0; cc < content_length; cc++) {
+                                tries = 0;
+                                do {
+                                    if (tries > 0) util_sleep(16);
+                                    network_socket_read(client, &buffer, 1, nullptr, &out_len);
+                                    tries++;
+                                } while (out_len != 1);
                                 post_content[cc] = buffer;
-                                //post_content << buffer;
                             }
                             post_content[content_length] = '\0';
+                            //std::cout << "post captured\n";
                         }
                     } else if (strstr(req_0, "OPTIONS") == req_0) {
                         sirt = SIRT_OPTIONS;
@@ -158,6 +175,7 @@ void socket_interface_process_client(void* param) {
                 char** status_code = (char **)&HTTP_RESPONSE_501;
                 if (request_path.size() > 0) {
                     const char* rp_0 = request_path[0].c_str();
+                    std::cout << "calling interface" << rp_0 << std::endl;
                     if (strstr(rp_0, "packetset") == rp_0) {
                         content = packetset_interface(sirt, &request_path, &params, post_content, content_length, status_code);
                     } else if (strstr(rp_0, "identity") == rp_0) {
@@ -174,6 +192,7 @@ void socket_interface_process_client(void* param) {
 #endif
                         exit(0);
                     }
+                    std::cout << "called interface" << rp_0 << std::endl;
                 }
 
                 if (post_content != nullptr) {
@@ -194,11 +213,17 @@ void socket_interface_process_client(void* param) {
                     response << content;
                 }
 
-                std::cout << response.str();
+                //std::cout << response.str();
+                std::cout << "responing with content\n" << content;
 
                 network_socket_send(client, response.str().c_str(), response.str().length());
 
-                network_socket_read(client, &buffer, 1, nullptr, &out_len);
+                int tries = 0;
+                do {
+                    if (tries > 0) util_sleep(16);
+                    network_socket_read(client, &buffer, 1, nullptr, &out_len);
+                    tries++;
+                } while (out_len != 1);
                 request.clear();
                 response.clear();
                 content = "";
@@ -213,6 +238,8 @@ void socket_interface_process_client(void* param) {
     }
     network_destroy(client);
     free(client);
+    thread_terminated(&socket_interface_thread_pool, sipp->thread_id);
+    free(sipp);
     std::cout << "processing request done\n";
 }
 
@@ -221,6 +248,8 @@ void socket_interface_listen_loop() {
 		struct Network* client = new struct Network();
 		network_init(client);
 		network_tcp_socket_server_accept(&socket_interface_static.tcp_server, client);
-		thread_create(&socket_interface_thread_pool, (void*)&socket_interface_process_client, client);
+        struct socket_interface_process_params *sipp = new socket_interface_process_params();
+        sipp->client = client;
+        sipp->thread_id = thread_create(&socket_interface_thread_pool, (void*)&socket_interface_process_client, sipp);
 	}
 }

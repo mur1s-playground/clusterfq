@@ -28,6 +28,8 @@ struct packetset {
 
 	bool*					verified;
 
+	bool					mt_receipt_complete_received;
+
 	struct message_meta*	mm;
 };
 

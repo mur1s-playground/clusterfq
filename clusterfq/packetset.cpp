@@ -101,7 +101,7 @@ void packetset_send_receipts(bool lock) {
 }
 
 void packetset_loop(void* unused) {
-	if (debug_toggle) std::cout << "packset_loop: start" << std::endl;
+	std::cout << "packset_loop: start" << std::endl;
 	while (true) {
 		if (debug_toggle) std::cout << "packset_loop: begin_while_loop" << std::endl;
 		mutex_wait_for(&packetset_loop_lock);
@@ -153,6 +153,13 @@ void packetset_loop(void* unused) {
 
 							break;
 						} else {
+							if (!ps->mt_receipt_complete_received) {
+								for (int ch = 0; ch < ps->chunks_ct; ch++) {
+									ps->chunks_received_ct[ch] = 0;
+								}
+								break;
+							}
+
 							packetset_state_info psi;
 
 							psi.hash_id = (unsigned char*)crypto_base64_encode((unsigned char *)ps->mm->msg_hash_id, 16);
@@ -197,39 +204,40 @@ void packetset_loop(void* unused) {
 							stringstream filename_base;
 							filename_base << "./identities/" << i->id << "/contacts/" << c->id << "/out/";
 
-							ps->mm->np->position = 0;
-							
-							//type
-							network_packet_read_int(ps->mm->np);
-
-							//msg/filename
-							int content_len = 0;
-							char* content = network_packet_read_str(ps->mm->np, &content_len);
-
-							//for packet state
-							if (ps->mm->mt == MT_FILE) {
-								int file_len = 0;
-								char* file_c = network_packet_read_str(ps->mm->np, &file_len);
-								free(file_c);
-							}
-
 							char* base64_packetset_hash = crypto_base64_encode((unsigned char*)ps->mm->msg_hash_id, 16, true);
 							string b64_ph(base64_packetset_hash);
 							b64_ph = util_rtrim(b64_ph, "\r\n\t ");
 
+							stringstream fname_ss;
+							if (ps->mm->mt == MT_FILE) {
+								ps->mm->np->position = 0;
+								network_packet_read_int(ps->mm->np);
+								int out_len = 0;
+								char* fname = network_packet_read_str(ps->mm->np, &out_len);
+								fname_ss << fname;
+								free(fname);
+								ps->mm->np->position = ps->mm->np->size;
+							}
+
+							stringstream filename_pending;
+							filename_pending << filename_base.str() << ps->mm->time_pending << "." << b64_ph << ".";
+
 							stringstream filename_l;
 							do {
 								filename_l.clear();
-								filename_l << filename_base.str() << time(nullptr) <<"."<< b64_ph <<".";
+								filename_l << filename_base.str() << time(nullptr) << "." << b64_ph << ".";
 								if (ps->mm->mt == MT_MESSAGE) {
 									filename_l << "message";
+									filename_pending << "message";
 								} else if (ps->mm->mt == MT_FILE) {
-									filename_l << "file";
+									filename_l << "file." << fname_ss.str();
+									filename_pending << "file." << fname_ss.str();
 								}
 								util_sleep(1000);
 							} while (util_path_exists(filename_l.str()));
-							util_file_write_line(filename_l.str(), string(content));
-							free(content);
+							filename_pending << ".pending";
+							util_file_rename(filename_pending.str(), filename_l.str());
+
 							free(base64_packetset_hash);
 						}
 					}
@@ -244,7 +252,7 @@ void packetset_loop(void* unused) {
 	packetset_loop_running = false;
 	thread_terminated(&main_thread_pool, packetset_loop_thread_id);
 	mutex_release(&packetset_loop_lock);
-	if (debug_toggle) std::cout << "packset_loop: end" << std::endl;
+	std::cout << "packset_loop: end" << std::endl;
 }
 
 void packetset_loop_start_if_needed() {
@@ -312,6 +320,8 @@ unsigned int packetset_create(struct message_meta* mm) {
 	ps.verified = (bool*)malloc(chunks * sizeof(bool));
 	memset(ps.verified, 0, chunks * sizeof(bool));
 
+	ps.mt_receipt_complete_received = false;
+
 	packetsets.insert(pair<int, struct packetset>(free_id, ps));
 	
 	return free_id;
@@ -343,6 +353,8 @@ struct packetset packetset_create(unsigned int chunks_ct) {
 
 	ps.complete = false;
 	ps.processed = false;
+
+	ps.mt_receipt_complete_received = false;
 
 	return ps;
 }

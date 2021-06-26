@@ -60,6 +60,60 @@ void identity_load(unsigned int id) {
 	struct identity i;
 	identity_load(&i, id);
 	identities.push_back(i);
+
+	for (int c = 0; c < identities[identities.size() - 1].contacts.size(); c++) {
+		struct contact* cc = &identities[identities.size() - 1].contacts[c];
+
+		stringstream base_path;
+		base_path << "./identities/" << i.id << "/contacts/" << cc->id << "/out/";
+
+		vector<string> filenames = util_file_get_all_names(base_path.str(), 0, 0, false);
+		for (int f = 0; f < filenames.size(); f++) {
+			vector<string> splt = util_split(filenames[f], ".");
+
+			const char* fn = filenames[f].c_str();
+			if (strstr(fn, ".pending") == fn + filenames[f].length() - strlen(".pending")) {
+				enum message_type mt = MT_MESSAGE;				
+
+				string name = "";
+				unsigned char* d;
+				size_t d_len = 0;
+				time_t time_pending = stoi(splt[0]);
+				unsigned char* hash_id = (unsigned char*)malloc(17);
+				memcpy(hash_id, splt[1].data(), 16);
+				hash_id[16] = '\0';
+
+				stringstream fullpath;
+				fullpath << base_path.str() << filenames[f];
+
+				if (strstr(fn, ".file.") != nullptr) {
+					stringstream f_ss;
+					for (int fna = 3; fna < splt.size() - 1; fna++) {
+						f_ss << splt[fna];
+						if (fna + 1 < splt.size() - 1) f_ss << ".";
+					}
+					name = f_ss.str();
+
+					mt = MT_FILE;
+					d = (unsigned char*)malloc(10 * 1024 * 1024);
+					util_file_read_binary(fullpath.str(), d, &d_len);
+				} else {
+					stringstream data;
+					vector<string> lines = util_file_read_lines(fullpath.str());
+
+					for (int l = 0; l < lines.size(); l++) {
+						if (l > 0) data << "\\n";
+						data << lines[l];
+					}
+					d = (unsigned char*)malloc(data.str().length() + 1);
+					memcpy(d, data.str().data(), data.str().length());
+					d[data.str().length()] = '\0';
+					d_len = data.str().length();
+				}
+				message_resend_pending(&identities[identities.size() - 1], cc, mt, time_pending, name, d, d_len, hash_id);
+			}
+		}
+	}
 }
 
 void identity_load(struct identity *i, unsigned int id) {

@@ -220,31 +220,37 @@ void network_socket_read(struct Network* network, void* packet, size_t size, cha
 		}
 	}
 #else
-	char cmbuf[0x100];
-	struct iovec iov[1];
-	struct msghdr mh;
-	mh.msg_name = &network->ip6addr;
-	mh.msg_namelen = sizeof(network->ip6addr);
-	mh.msg_iov = iov;
-	mh.msg_iovlen = 1;
-	mh.msg_control = cmbuf;
-	mh.msg_controllen = sizeof(cmbuf);
-	iov[0].iov_base = (char*)packet;
-	iov[0].iov_len = size;
-	ret = recvmsg(network->socket, &mh, 0);
-	char* pkt = (char*)packet;
-	if (ret > -1) {
-		pkt[ret] = '\0';
-		if (out_len != nullptr) *out_len = ret;
+	if (dst_address == nullptr) {
+		ret = read(network->socket, packet, size);
+		*out_len = ret;
 	} else {
-		pkt[0] = '\0';
-	}
+		char cmbuf[0x100];
+		struct iovec iov[1];
+		struct msghdr mh;
+		mh.msg_name = &network->ip6addr;
+		mh.msg_namelen = sizeof(network->ip6addr);
+		mh.msg_iov = iov;
+		mh.msg_iovlen = 1;
+		mh.msg_control = cmbuf;
+		mh.msg_controllen = sizeof(cmbuf);
+		iov[0].iov_base = (char*)packet;
+		iov[0].iov_len = size;
+		ret = recvmsg(network->socket, &mh, 0);
+		char* pkt = (char*)packet;
+		if (ret > -1) {
+			pkt[ret] = '\0';
+			if (out_len != nullptr) *out_len = ret;
+		} else {
+			pkt[0] = '\0';
+			//TODO: check if *out_len should be set tcp & udp
+		}
 
-	for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&mh); cmsg != NULL; cmsg = CMSG_NXTHDR(&mh, cmsg)) {
-		if (cmsg->cmsg_type == 50) {
-			struct in6_pktinfo* pi = (struct in6_pktinfo*)CMSG_DATA(cmsg);
-			inet_ntop(AF_INET6, (const void*)&pi->ipi6_addr, dst_address, 45);
-			break;
+		for (struct cmsghdr* cmsg = CMSG_FIRSTHDR(&mh); cmsg != NULL; cmsg = CMSG_NXTHDR(&mh, cmsg)) {
+			if (cmsg->cmsg_type == 50) {
+				struct in6_pktinfo* pi = (struct in6_pktinfo*)CMSG_DATA(cmsg);
+				inet_ntop(AF_INET6, (const void*)&pi->ipi6_addr, dst_address, 45);
+				break;
+			}
 		}
 	}
 #endif

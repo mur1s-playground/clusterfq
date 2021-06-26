@@ -766,6 +766,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 											pso->chunks_received_ct[ch]++;
 										}
 									}
+									pso->mt_receipt_complete_received = true;
 								} else {
 									pso->chunks_received_ct[receipt_of_chunk]++;
 								}
@@ -862,6 +863,16 @@ string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_
 		}
 
 		result << "\",\n";
+
+		const char* fn = splt[0].c_str();
+
+		result << "\t\t\t\"pending\": ";
+		if (strstr(fn, ".pending") == fn + splt[0].length() - strlen(".pending")) {
+			result << 1;
+		} else {
+			result << 0;
+		}
+		result << ",\n";
 
 		if (strstr(splt[0].c_str(), ".file.") != nullptr) {
 			//is file

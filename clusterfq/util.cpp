@@ -52,6 +52,10 @@ string& util_trim(string& str, const string& chars) {
 	return util_ltrim(util_rtrim(str, chars), chars);
 }
 
+void util_file_rename(const string from, const string to) {
+	rename(from.c_str(), to.c_str());
+}
+
 void util_file_write_line(const string filepath, const char* line) {
 	string l(line);
 	util_file_write_line(filepath, l);

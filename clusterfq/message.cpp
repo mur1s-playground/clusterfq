@@ -206,7 +206,7 @@ void message_check_session_key(struct identity *i, struct contact *c) {
 		//MSG HASH-ID
 		mm->msg_hash_id = message_create_hash_id(np->data, np->size);
 
-		contact_add_message(c, mm);
+		contact_add_message(c, mm, false, false);
 	}
 
 	if (c->session_key.private_key_len == 0) {
@@ -271,6 +271,72 @@ bool message_check_pre(struct identity *i, struct contact *c) {
 	return true;
 }
 
+void message_pending_save(struct message_meta* mm, string name, unsigned char* data, unsigned int data_len) {
+	stringstream filename_base;
+	filename_base << "./identities/" << mm->identity_id << "/contacts/" << mm->contact_id << "/out/";
+
+	char* base64_packetset_hash = crypto_base64_encode((unsigned char*)mm->msg_hash_id, 16, true);
+	string b64_ph(base64_packetset_hash);
+	b64_ph = util_rtrim(b64_ph, "\r\n\t ");
+
+	time_t time_pending;
+
+	stringstream filename_l;
+	do {
+		time_pending = time(nullptr);
+
+		filename_l.clear();
+		filename_l << filename_base.str() << time_pending << "." << b64_ph << ".";
+		if (mm->mt == MT_MESSAGE) {
+			filename_l << "message";
+		} else if (mm->mt == MT_FILE) {
+			filename_l << "file." << name;
+		}
+		filename_l << ".pending";
+		util_sleep(1000);
+	} while (util_path_exists(filename_l.str()));
+
+	if (mm->mt == MT_MESSAGE) {
+		util_file_write_line(filename_l.str(), string((char*)data));
+	} else if (mm->mt == MT_FILE){
+		util_file_write_binary(filename_l.str(), data, data_len);
+	}
+
+	mm->time_pending = time_pending;
+
+	free(base64_packetset_hash);
+}
+
+void message_resend_pending(struct identity *i, struct contact *c, enum message_type mt, time_t time_pending, string name, unsigned char *d, unsigned int d_len, unsigned char *hash_id) {
+	if (!message_check_pre(i, c)) return;
+
+	struct message_meta* mm = new struct message_meta();
+	mm->mt = MT_MESSAGE;
+	mm->identity_id = i->id;
+	mm->contact_id = c->id;
+	mm->packetset_id = UINT_MAX;
+
+	unsigned int size_est = 1 + d_len + 17 + 6 + 10 + 40;
+
+	struct NetworkPacket* np = new NetworkPacket();
+	network_packet_create(np, size_est);
+	network_packet_append_int(np, mt);
+	if (mt == MT_FILE) {
+		network_packet_append_str(np, name.c_str(), name.length());
+	}
+	network_packet_append_str(np, (char *)d, d_len);
+
+	free(d);
+	
+	mm->np = np;
+	mm->msg_hash_id = hash_id;
+	mm->time_pending = time_pending;
+
+	contact_add_message(c, mm);
+
+	packetset_loop_start_if_needed();
+}
+
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char *message, unsigned int msg_len) {
 	struct identity* i = identity_get(identity_id);
 	struct contact* c = contact_get(&i->contacts, contact_id);
@@ -296,6 +362,8 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 	
 	//MSG HASH-ID
 	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+	message_pending_save(mm, "", message, msg_len);
 
 	contact_add_message(c, mm);
 
@@ -329,7 +397,7 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, string
 	free(buffer);
 
 	string fname = util_file_get_name(name);
-	
+
 	std::cout << "file input: " << data_len << std::endl;
 
 	unsigned char* hash = crypto_hash_md5(data, data_len);
@@ -354,12 +422,14 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, string
 	network_packet_append_str(np, fname.c_str(), fname.length());
 	network_packet_append_str(np, (char*)bfile, out_len);
 
-	free(bfile);
-
 	mm->np = np;
 
 	//MSG HASH-ID
 	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+	message_pending_save(mm, fname, bfile, out_len);
+
+	free(bfile);
 
 	contact_add_message(c, mm);
 

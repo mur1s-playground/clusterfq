@@ -14,6 +14,11 @@ enum socket_interface_request_type {
 	SIRT_OPTIONS
 };
 
+struct socket_interface_process_params {
+	struct Network* client;
+	unsigned int	thread_id;
+};
+
 extern const char* HTTP_RESPONSE_200;
 extern const char* HTTP_RESPONSE_404;
 extern const char* HTTP_RESPONSE_501;

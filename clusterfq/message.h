@@ -38,6 +38,8 @@ struct message_meta {
 	unsigned char*			msg_hash_id;
 
 	unsigned int			packetset_id;
+
+	time_t					time_pending;
 };
 
 void message_check_establish_contact(struct identity* i, struct contact* c);
@@ -50,6 +52,7 @@ void message_send_migrate_key(struct identity* i, struct contact* c);
 void message_send_session_key(struct identity* i, struct contact* c, bool prepend = false);
 void message_send_new_address(struct identity* i, struct contact* c);
 
+void message_resend_pending(struct identity* i, struct contact* c, enum message_type mt, time_t time_pending, string name, unsigned char* d, unsigned int d_len, unsigned char* hash_id);
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char* message, unsigned int msg_len);
 //void message_send_file(unsigned int identity_id, unsigned int contact_id, unsigned char* path);
 void message_send_file(unsigned int identity_id, unsigned int contact_id, string name, unsigned char* data, unsigned int data_len);
