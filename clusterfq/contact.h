@@ -25,6 +25,7 @@ struct contact {
 
 	struct Key						pub_key;
 	string							address;
+	bool							verified;
 
 	string							address_rev;
 	string							address_rev_migration;
@@ -58,6 +59,9 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 void contact_delete(struct contact* c, unsigned int identity_id);
 
 /* LOAD/SAVE SUB */
+void contact_verified_save(struct contact *c, string path);
+void contact_verified_load(struct contact* c, string path);
+
 void contact_identity_key_id_save(struct contact* c, unsigned int identity_id);
 void contact_identity_key_id_save(struct contact* c, string path);
 void contact_identity_key_id_load(struct contact* c, string path);

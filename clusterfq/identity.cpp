@@ -350,6 +350,14 @@ string identities_list() {
 				}
 				
 			}
+			result << "\",\n";
+			result << "\t\t\t\t\t\"fingerprint\": \"";
+			if (identities[i].keys[k].public_key_len > 0) {
+				char* fingerprint = crypto_key_fingerprint(&identities[i].keys[k]);
+				string fng(fingerprint);
+				result << fng;
+				free(fingerprint);
+			}
 			result << "\"\n";
 			result << "\t\t\t\t}";
 			if (k + 1 < identities[i].keys.size()) {
@@ -390,6 +398,26 @@ void identity_contact_delete(unsigned int id, unsigned int c_id) {
 			}
 		}
 	}
+}
+
+string identity_contact_verify(unsigned int identity_id, unsigned int contact_id) {
+	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return "{ }";
+	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return "{ }";
+	c->verified = true;
+
+	stringstream base_dir;
+	base_dir << "./identities/" << identity_id << "/contacts/" << c->id << "/";
+	contact_verified_save(c, base_dir.str());
+
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identity_id\": " << identity_id << ",\n";
+	result << "\t\"contact_id\": " << contact_id << "\n";
+	result << "}\n";
+	string res = result.str();
+	return res;
 }
 
 void identity_contact_add(unsigned int id, struct contact* c) {
@@ -496,7 +524,16 @@ string identity_contact_list(unsigned int id) {
 			gmt = util_trim(gmt, "\r\n\t ");
 
 			result << "\t\t\t\"last_seen\": \"" << gmt << " UTC" << "\",\n";
-			result << "\t\t\t\"address_available\": " << (i->contacts[c].address.length() > 0) << "\n";
+			result << "\t\t\t\"address_available\": " << (i->contacts[c].address.length() > 0) << ",\n";
+			result << "\t\t\t\"fingerprint\": \"";
+			if (i->contacts[c].pub_key.public_key_len > 0) {
+				char* fingerprint = crypto_key_fingerprint(&i->contacts[c].pub_key);
+				string fng(fingerprint);
+				result << fng;
+				free(fingerprint);
+			}
+			result << "\",\n";
+			result << "\t\t\t\"verified\": " << i->contacts[c].verified << "\n";
 			result << "\t\t}";
 			if (c + 1 < i->contacts.size()) {
 				result << ",";
@@ -559,6 +596,11 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 				stringstream content_ss;
 				content_ss << "{\n\t\"identity_id\": " << identity_id << ",\n\t\"contact_id\": " << contact_id << "}\n";
 				content = content_ss.str();
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "contact_verify") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				content = identity_contact_verify(identity_id, contact_id);
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "share") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));

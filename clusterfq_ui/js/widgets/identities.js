@@ -208,6 +208,12 @@ var Identities = function(db, change_dependencies) {
 	this.toggle_secondary_controls = function() {
 		for (var k in identities.identities_json["identities"]) {
 			if (identities.identities_json["identities"].hasOwnProperty(k)) {
+				var fingerprint_button = document.getElementById(this.widget.name + "_show_fingerprints_" + k);
+				if (fingerprint_button.style.display == "none") {
+					fingerprint_button.style.display = "inline";
+				} else {
+					fingerprint_button.style.display = "none";
+				}
 				var migrate_key_button = document.getElementById(this.widget.name + "_identity_migrate_key_" + k);
 				if (migrate_key_button.style.display == "none") {
 					migrate_key_button.style.display = "inline";
@@ -371,6 +377,26 @@ var Identities = function(db, change_dependencies) {
 					this.style.display = "none";
 				}
 				share_controls.appendChild(share_btn);
+				
+				var show_fingerprints_btn = document.createElement("button");
+				show_fingerprints_btn.id = this.widget.name + "_show_fingerprints_" + element["id"];
+				show_fingerprints_btn.identity_id = element["id"];
+				var f_img = document.createElement("img");
+				f_img.src = "img/fingerprint.svg";
+				f_img.className = "arrow_down";
+				show_fingerprints_btn.appendChild(f_img);
+				show_fingerprints_btn.title = "Show fingerprints";
+				show_fingerprints_btn.style.display = "none";
+				show_fingerprints_btn.onclick = function() {
+					var fprints = [];
+					for (var k in identities.identities_json["identities"][this.identity_id]["keys"]) {
+						if (identities.identities_json["identities"][this.identity_id]["keys"].hasOwnProperty(k)) {
+							fprints.push(k + " -> " + identities.identities_json["identities"][this.identity_id]["keys"][k]["fingerprint"]);
+						}
+					}
+					alert(fprints.join("\n"));
+				}
+				share_controls.appendChild(show_fingerprints_btn);
 					
 				var migrate_pubkey_btn = document.createElement("button");
 				migrate_pubkey_btn.id = this.widget.name + "_identity_migrate_key_" + element["id"];

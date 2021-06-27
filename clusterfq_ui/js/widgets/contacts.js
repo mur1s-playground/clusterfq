@@ -164,6 +164,15 @@ var Contacts = function(db, change_dependencies) {
 		if (contacts.contacts_by_identity_id.hasOwnProperty(contacts.selected_identity_id)) {
 			for (var k in contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"]) {
 				if (contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"].hasOwnProperty(k)) {
+					 var verify_fprint = document.getElementById(contacts.widget.name + "_contact_verify_" + contacts.selected_identity_id + "_" + k);
+					 if (verify_fprint.style.display == "none") {
+						 if (contacts.contacts_by_identity_id[contacts.selected_identity_id]["contacts"][k]["verified"] == 0) {
+							verify_fprint.style.display = "inline";
+						 }
+					 } else {
+						 verify_fprint.style.display = "none";
+					 }
+					
 					 var delete_button = document.getElementById(contacts.widget.name + "_contact_delete_" + contacts.selected_identity_id + "_" + k);
 					 if (delete_button.style.display == "none") {
 						 delete_button.style.display = "inline";
@@ -186,6 +195,10 @@ var Contacts = function(db, change_dependencies) {
 	this.contacts_view.className = "contacts_list";
 	
 	this.on_contact_delete_response = function() {
+		contacts.changed_f();
+	}
+	
+	this.on_verify_fingerprint_response = function() {
 		contacts.changed_f();
 	}
 
@@ -237,6 +250,14 @@ var Contacts = function(db, change_dependencies) {
 						received.style.visibility = "hidden";
 						received.className = "status_msg_received";
 						name.appendChild(received);
+						
+						var unverified = document.createElement("span");
+						unverified.innerHTML = "&#128681;";
+						unverified.title = "Fingerprint unverified";
+						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["verified"] == 1) {
+							unverified.style.display = "none";	
+						}
+						name.appendChild(unverified);
 
 						if (contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id].hasOwnProperty("new_msg") &&
 							contacts.contacts_by_identity_id[contact.identity_id]["contacts"][contact.contact_id]["new_msg"] === true) {
@@ -257,6 +278,27 @@ var Contacts = function(db, change_dependencies) {
 						this.space_fill = document.createElement("div");
 						this.space_fill.className = "id_controls";
 						
+						var verify_fprint = document.createElement("button");
+						verify_fprint.id = this.widget.name + "_contact_verify_" + el["identity_id"] + "_" + elem["id"];
+						verify_fprint.obj = this;
+						verify_fprint.identity_id = el["identity_id"];
+						verify_fprint.contact_id = elem["id"];
+						verify_fprint.contact_name = elem["name"];
+						var f_img = document.createElement("img");
+						f_img.src = "img/fingerprint.svg";
+						f_img.className = "arrow_down";
+						verify_fprint.appendChild(f_img);
+						verify_fprint.title = "Verify fingerprint";
+						verify_fprint.style.display = "none";
+						verify_fprint.onclick = function() {
+							var fprint = contacts.contacts_by_identity_id[this.identity_id]["contacts"][this.contact_id]["fingerprint"];
+							var r = confirm("I have verified, that \"" + this.contact_name + "\"'s fingerprint is the following:\n" + fprint);
+							if (r == true) {
+								this.obj.db.query_post("identity/contact_verify?identity_id=" + this.identity_id + "&contact_id=" + this.contact_id, "{ }", contacts.on_verify_fingerprint_response);
+							}
+						}
+						this.space_fill.appendChild(verify_fprint);
+						
 						var delete_contact = document.createElement("button");
 						delete_contact.id = this.widget.name + "_contact_delete_" + el["identity_id"] + "_" + elem["id"];
 						delete_contact.obj = this;
@@ -272,7 +314,6 @@ var Contacts = function(db, change_dependencies) {
 							if (r == true) {
 								this.disabled = true;
 								this.obj.db.query_post("identity/contact_delete?identity_id=" + this.identity_id + "&contact_id=" + this.contact_id, "{ }", contacts.on_contact_delete_response);
-							} else {
 							}
 						}
 						this.space_fill.appendChild(delete_contact);

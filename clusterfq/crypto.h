@@ -59,6 +59,7 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 
 /* UTIL */
 
+char* crypto_key_fingerprint(struct Key* pubkey);
 extern void crypto_key_dump(struct Key* key);
 extern void crypto_key_list_dump(struct Key** key_list, int key_list_len);
 

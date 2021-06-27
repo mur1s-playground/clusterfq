@@ -50,6 +50,7 @@ void contact_create_open(struct contact* c, string name_placeholder, string addr
 	c->address = "";
 	c->address_rev = address_rev;
 	c->address_rev_established = time(nullptr);
+	c->verified = false;
 
 	c->cs = new struct contact_stats();
 	contact_stats_init(c->cs);
@@ -79,6 +80,7 @@ void contact_create(struct contact* c, string name, string pubkey, string addres
 	c->address_rev_established = 0;
 
 	c->session_established = 0;
+	c->verified = false;
 
 	c->cs = new struct contact_stats();
 	contact_stats_init(c->cs);
@@ -115,6 +117,8 @@ void contact_save(struct contact* c, string path) {
 		contact_sessionkey_save(c, path);
 	}
 
+	contact_verified_save(c, path);
+
 	stringstream contact_stats_path;
 	contact_stats_path << path << "contact_stats.bin";
 	util_file_write_binary(contact_stats_path.str(), (unsigned char *)c->cs, sizeof(struct contact_stats));
@@ -143,6 +147,8 @@ void contact_load(struct contact* c, unsigned int identity_id, unsigned int id, 
 	c->session_key.public_key_len = 0;
 	crypto_key_name_set(&c->session_key, c->name.c_str(), c->name.length());
 	crypto_key_copy(&c->session_key, &c->session_key_inc);
+
+	contact_verified_load(c, path);
 
 	contact_stats_load(c, path);
 
@@ -185,6 +191,25 @@ void contact_delete(struct contact* c, unsigned int identity_id) {
 	util_directory_delete(path.str());
 
 	//TODO: memory cleanup
+}
+
+void contact_verified_save(struct contact* c, string path) {
+	stringstream v_path;
+	v_path << path << "verified";
+	stringstream v_ss;
+	v_ss << (c->verified == 1);
+	util_file_write_line(v_path.str(), v_ss.str());
+}
+
+void contact_verified_load(struct contact* c, string path) {
+	stringstream v_path;
+	v_path << path << "verified";
+	vector<string> v = util_file_read_lines(v_path.str(), true);
+	if (v.size() > 0) {
+		c->verified = (stoi(v[0].c_str()) == 1);
+	} else {
+		c->verified = false;
+	}
 }
 
 void contact_identity_key_id_save(struct contact* c, unsigned int identity_id) {

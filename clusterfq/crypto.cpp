@@ -571,6 +571,29 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 
 /* UTILS */
 
+char *crypto_key_fingerprint(struct Key* pubkey) {
+	char* buffer = (char*)malloc(256);
+	if (pubkey->public_key_len == 0) {
+		buffer[0] = '\0';
+	} else {
+		unsigned char* hash = crypto_hash_sha256((unsigned char *)pubkey->public_key, pubkey->public_key_len);
+		int position = 0;
+		for (int i = 0; i < SHA256_DIGEST_LENGTH / 2; i++) {
+			snprintf(&buffer[position], 200,"%02x", hash[i * 2]);
+			//fprintf(stdout, "%02x:", hash[i * 2]);
+			position += 2;
+			if (i + 1 < SHA256_DIGEST_LENGTH / 2) {
+				buffer[position] = ':';
+				position++;
+			}
+		}
+		//fprintf(stdout, "\n");
+		buffer[position] = '\0';
+		free(hash);
+	}
+	return buffer;
+}
+
 void crypto_key_dump(struct Key* key) {
 	int i;
 	printf("/--- KEY DUMP -----------------------------------\n");
