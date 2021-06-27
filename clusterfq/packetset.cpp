@@ -19,6 +19,8 @@
 #include <iostream>
 
 map<int, struct packetset>		packetsets					= map<int, struct packetset>();
+struct mutex					packetsets_lock;
+
 bool							packetset_loop_running		= false;
 int								packetset_loop_thread_id	= -1;
 struct mutex					packetset_loop_lock;
@@ -35,6 +37,7 @@ struct mutex						packetset_state_info_lock;
 vector<struct packetset_state_info> packetset_state_info_ = vector<struct packetset_state_info>();
 
 void packetset_static_init() {
+	mutex_init(&packetsets_lock);
 	mutex_init(&packetset_loop_lock);
 	mutex_init(&packetset_state_info_lock);
 }
@@ -93,6 +96,12 @@ void packetset_remove_pending(struct identity *i, struct contact *c, unsigned ch
 		if (same) {
 			std::cout << "removing pending packetset\n\n\n";
 			free(mm->msg_hash_id);
+
+			struct packetset *ps = packetset_from_id(mm->packetset_id);
+			if (ps != nullptr) {
+				packetset_destroy(ps);
+				packetsets_erase_from_id(mm->packetset_id);
+			}
 			c->outgoing_messages.erase(c->outgoing_messages.begin() + om);
 		}
 	}
@@ -263,10 +272,23 @@ void packetset_loop(void* unused) {
 
 							free(base64_packetset_hash);
 						}
+						
+						free(mm->msg_hash_id);
+
+						struct packetset* ps = packetset_from_id(mm->packetset_id);
+						if (ps != nullptr) {
+							packetset_destroy(ps);
+							packetsets_erase_from_id(mm->packetset_id);
+						}
+						c->outgoing_messages.erase(c->outgoing_messages.begin() + om);
+						break;
+						
 					}
 					if (!ps->complete) break;
 				}
 			}
+		} else {
+			contact_remove_pending(c);
 		}
 		mutex_release(&c->outgoing_messages_lock);
 		if (debug_toggle) std::cout << "packset_loop: end_while_loop" << std::endl;
@@ -296,16 +318,6 @@ void packetset_enqueue_receipt(struct message_receipt mr) {
 unsigned int packetset_create(struct message_meta* mm) {
 	struct packetset ps;
 	ps.mm = mm;
-
-	unsigned int free_id = 0;
-	while (true) {
-		map<int, struct packetset>::iterator psi = packetsets.find(free_id);
-		if (psi == packetsets.end()) {
-			break;
-		}
-		free_id++;
-	}
-	mm->packetset_id = free_id;
 
 	int chunk_size = 0;
 
@@ -345,8 +357,18 @@ unsigned int packetset_create(struct message_meta* mm) {
 
 	ps.mt_receipt_complete_received = false;
 
-	packetsets.insert(pair<int, struct packetset>(free_id, ps));
-	
+	unsigned int free_id = 0;
+	mutex_wait_for(&packetsets_lock);
+	while (true) {
+		map<int, struct packetset>::iterator ps_id = packetsets.find(free_id);
+		if (ps_id == packetsets.end()) {
+			mm->packetset_id = free_id;
+			packetsets.insert(pair<int, struct packetset>(free_id, ps));
+			break;
+		}
+		free_id++;
+	}
+	mutex_release(&packetsets_lock);
 	return free_id;
 }
 
@@ -382,13 +404,42 @@ struct packetset packetset_create(unsigned int chunks_ct) {
 	return ps;
 }
 
+void packetset_destroy(struct packetset *ps) {
+	for (int ch = 0; ch < ps->chunks_ct; ch++) {
+		if (ps->chunks[ch] != nullptr) free(ps->chunks[ch]);
+	}
+	free(ps->chunks);
+	free(ps->chunks_length);
+	free(ps->chunks_received_ct);
+	free(ps->chunks_sent_ct);
+	free(ps->verified);
+}
+
 struct packetset* packetset_from_id(unsigned int id) {
+	mutex_wait_for(&packetsets_lock);
 	map<int, struct packetset>::iterator ps_id = packetsets.find(id);
 	if (ps_id != packetsets.end()) {
-		return &ps_id->second;
+		struct packetset* ps = &ps_id->second;
+		mutex_release(&packetsets_lock);
+		return ps;
 	}
+	mutex_release(&packetsets_lock);
 	return nullptr;
 }
+
+void packetsets_erase_from_id(unsigned int id) {
+	mutex_wait_for(&packetsets_lock);
+	packetsets.erase(id);
+	mutex_release(&packetsets_lock);
+}
+
+/*/
+void packetsets_insert(unsigned int id, struct packetset ps) {
+	mutex_wait_for(&packetsets_lock);
+	packetsets.insert(std::pair<int, packetset>(id, ps));
+	mutex_release(&packetsets_lock);
+}
+*/
 
 unsigned int packetset_prepare_send(struct packetset* ps) {
 	struct identity* i = identity_get(ps->mm->identity_id);
@@ -483,15 +534,6 @@ unsigned char* packageset_message_get(struct packetset* ps, unsigned int *out_le
 	msg[total_len] = '\0';
 	*out_len = total_len;
 	return msg;
-}
-
-void packetset_destroy(struct packetset* ps) {
-	for (int i = 0; i < ps->chunks_ct; i++) {
-		free(ps->chunks[i]);
-	}
-	free(ps->chunks_length);
-	free(ps->chunks_received_ct);
-	free(ps->chunks_sent_ct);
 }
 
 string packetset_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {

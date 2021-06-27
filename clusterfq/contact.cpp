@@ -406,7 +406,7 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 	} else {
 		c->outgoing_messages.push_back(mm);
 	}
-	if (lock_out) mutex_release(&c->outgoing_messages_lock);
+
 	mutex_wait_for(&contact_message_pending_lock);
 	bool found = false;
 	for (int mp = 0; mp < contact_message_pending.size(); mp++) {
@@ -417,6 +417,19 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 	}
 	if (!found) {
 		contact_message_pending.push_back(c);
+	}
+	mutex_release(&contact_message_pending_lock);
+
+	if (lock_out) mutex_release(&c->outgoing_messages_lock);
+}
+
+void contact_remove_pending(struct contact* c) {
+	mutex_wait_for(&contact_message_pending_lock);
+	for (int mp = 0; mp < contact_message_pending.size(); mp++) {
+		if (contact_message_pending[mp] == c) {
+			contact_message_pending.erase(contact_message_pending.begin() + mp);
+			break;
+		}
 	}
 	mutex_release(&contact_message_pending_lock);
 }
@@ -803,9 +816,28 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			contact_stats_update(c->cs, CSE_CHUNK_RECEIVED);
 			contact_stats_save(c, i->id);
 		}
+
+		contact_incoming_packetsets_cleanup(c);
 	}
 	free(hash_id);
 	return true;
+}
+
+void contact_incoming_packetsets_cleanup(struct contact *c) {
+	vector<string> remove = vector<string>();
+
+	map<string, packetset>::iterator inc_ps = c->incoming_packetsets.begin();
+	while (inc_ps != c->incoming_packetsets.end()) {
+		if (inc_ps->second.complete && inc_ps->second.processed && time(nullptr) - inc_ps->second.transmission_last_receipt > 60) {
+			remove.push_back(inc_ps->first);
+		}
+		inc_ps++;
+	}
+
+	for (int r = 0; r < remove.size(); r++) {
+		packetset_destroy(&(c->incoming_packetsets.find(remove[r])->second));
+		c->incoming_packetsets.erase(remove[r]);
+	}
 }
 
 string contact_get_chat(unsigned int identity_id, unsigned int contact_id, time_t from, time_t to) {
