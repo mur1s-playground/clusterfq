@@ -54,6 +54,8 @@ struct packetset_state_info {
 void packetset_static_add_state_info(struct packetset_state_info psi);
 string packetset_static_get_state_infos();
 
+void packetset_remove_pending(struct identity* i, struct contact* c, unsigned char* hash_id);
+
 void packetset_loop(void* unused);
 void packetset_static_init();
 void packetset_loop_start_if_needed();

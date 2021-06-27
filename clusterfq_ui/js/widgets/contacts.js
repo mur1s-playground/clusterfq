@@ -19,6 +19,7 @@ var Contacts = function(db, change_dependencies) {
 	this.add_btn.widget_name = this.widget.name;
 	this.add_btn.innerHTML = "+";
 	this.add_btn.style.display = "block";
+	this.add_btn.title = "Add contact";
 	this.add_btn.onclick = function() {
 		document.getElementById(this.widget_name + "_add_view").style.display = "flex";
 		this.style.display = "none";
@@ -57,6 +58,7 @@ var Contacts = function(db, change_dependencies) {
 		this.cancel_exec = document.createElement("button");
 		this.cancel_exec.widget_name = this.widget.name;
 		this.cancel_exec.appendChild(document.createTextNode("\u26cc"));
+		this.cancel_exec.title = "Cancel adding contact";
 		this.cancel_exec.onclick = function() {
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
 			document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
@@ -68,10 +70,30 @@ var Contacts = function(db, change_dependencies) {
 		this.add_exec.obj = this;
 		this.add_exec.widget_name = this.widget.name;
 		this.add_exec.innerHTML = "&#10003;";
+		this.add_exec.title = "Add contact";
 		this.add_exec.onclick = function() {
-			this.obj.contact_add();
-			document.getElementById(this.widget_name + "_add_view").style.display = "none";
-			document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
+			var name = document.getElementById(this.obj.widget.name + "_Name").value;
+			var pubkey = document.getElementById(this.obj.widget.name + "_Pubkey").value;
+			var address = document.getElementById(this.obj.widget.name + "_Address").value;
+			
+			var error_msg = [];
+			if (name.length == 0) {
+				error_msg.push("Name required");
+			}
+			if (pubkey.length == 0) {
+				error_msg.push("Public key required");
+			}
+			if (address.length == 0) {
+				error_msg.push("Address required");
+			}
+			if (error_msg.length > 0) {
+				alert(error_msg.join(", "));
+			} else {
+				this.db.query_post("identity/contact_add?identity_id=" + this.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
+			
+				document.getElementById(this.widget_name + "_add_view").style.display = "none";
+				document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";
+			}
 		}
 		this.add_view.appendChild(this.add_exec);
 	}
@@ -132,6 +154,7 @@ var Contacts = function(db, change_dependencies) {
 	this.settings_button = document.createElement("button");
 	this.settings_button.widget_name = this.widget.name;
 	this.settings_button.appendChild(document.createTextNode("\u2630"));
+	this.settings_button.title = "Show/Hide settings";
 	this.settings_button.onclick = function() {
 		contacts.toggle_secondary_controls();
 	}
@@ -156,13 +179,6 @@ var Contacts = function(db, change_dependencies) {
 
 	this.on_contact_add_response = function() {
 		contacts.changed_f();
-	}
-
-	this.contact_add = function() {
-		var name = document.getElementById(this.widget.name + "_Name").value;
-		var pubkey = document.getElementById(this.widget.name + "_Pubkey").value;
-		var address = document.getElementById(this.widget.name + "_Address").value;
-		this.db.query_post("identity/contact_add?identity_id=" + this.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
 	}
 		
 	this.contacts_view = document.createElement("div");

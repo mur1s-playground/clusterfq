@@ -311,7 +311,7 @@ void message_resend_pending(struct identity *i, struct contact *c, enum message_
 	if (!message_check_pre(i, c)) return;
 
 	struct message_meta* mm = new struct message_meta();
-	mm->mt = MT_MESSAGE;
+	mm->mt = mt;
 	mm->identity_id = i->id;
 	mm->contact_id = c->id;
 	mm->packetset_id = UINT_MAX;
@@ -339,7 +339,9 @@ void message_resend_pending(struct identity *i, struct contact *c, enum message_
 
 void message_send(unsigned int identity_id, unsigned int contact_id, unsigned char *message, unsigned int msg_len) {
 	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return;
 	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return;
 
 	if (!message_check_pre(i, c)) return;
 
@@ -372,7 +374,9 @@ void message_send(unsigned int identity_id, unsigned int contact_id, unsigned ch
 
 void message_send_file(unsigned int identity_id, unsigned int contact_id, string name, unsigned char* data, unsigned int data_len) {
 	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return;
 	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return;
 
 	if (!message_check_pre(i, c)) return;
 
@@ -436,6 +440,50 @@ void message_send_file(unsigned int identity_id, unsigned int contact_id, string
 	packetset_loop_start_if_needed();
 }
 
+string message_delete(int identity_id, int contact_id, string hash_id, string sdir) {
+	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return "{ }";
+	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return "{ }";
+
+	if (hash_id.length() == 0) return "{ }";
+
+	string subdir = "";
+	if (strstr(sdir.c_str(), "in")) {
+		subdir = "in/";
+	} else {
+		subdir = "out/";
+	}
+
+	stringstream base_path;
+	base_path << "./identities/" << i->id << "/contacts/" << c->id << "/" << subdir << "/";
+
+	vector<string> files = util_file_get_all_names(base_path.str(), 0, 0);
+	for (int f = 0; f < files.size(); f++) {
+		if (strstr(files[f].c_str(), hash_id.c_str()) != nullptr) {
+			stringstream fullpath;
+			fullpath << base_path.str() << files[f];
+
+			util_file_delete(fullpath.str());
+
+			size_t out_len = 0;
+			stringstream ss;
+			ss << hash_id << "\n";
+			unsigned char* dec = crypto_base64_decode(ss.str().c_str(), &out_len, true);
+			packetset_remove_pending(i, c, dec);
+			free(dec);
+		}
+	}
+
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identity_id\": " << identity_id << ",\n";
+	result << "\t\"contact_id\": " << contact_id << ",\n";
+	result << "\t\"hash_id\": \"" << hash_id << "\"\n";
+	result << "}\n";
+	return result.str();
+}
+
 string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
@@ -458,6 +506,13 @@ string message_interface(enum socket_interface_request_type sirt, vector<string>
 					message_send_file(identity_id, contact_id, filename, (unsigned char *)post_content, post_content_length);
 				}
 				
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "delete") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				string hash_id = http_request_get_param(request_params, "hash_id");
+				string sdir = http_request_get_param(request_params, "sdir");
+				content = message_delete(identity_id, contact_id, hash_id, sdir);
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else {
 				*status_code = (char*)HTTP_RESPONSE_404;

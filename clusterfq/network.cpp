@@ -129,8 +129,10 @@ char* network_packet_read_str(struct NetworkPacket* packet, int* out_len) {
 	char* result;
 	(*out_len) = network_packet_read_int(packet);
 	result = (char*)malloc((*out_len) + 1);
-	memcpy((void*)result, (void*)&(packet->data[packet->position]), *out_len);
-	packet->position += *out_len;
+	if (packet->position + *out_len <= packet->size) {
+		memcpy((void*)result, (void*)&(packet->data[packet->position]), *out_len);
+		packet->position += *out_len;
+	}
 	result[*out_len] = '\0';
 	return result;
 }

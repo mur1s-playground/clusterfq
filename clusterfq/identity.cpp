@@ -79,9 +79,12 @@ void identity_load(unsigned int id) {
 				unsigned char* d;
 				size_t d_len = 0;
 				time_t time_pending = stoi(splt[0]);
-				unsigned char* hash_id = (unsigned char*)malloc(17);
-				memcpy(hash_id, splt[1].data(), 16);
-				hash_id[16] = '\0';
+
+				size_t b64_out = 0;
+				stringstream b64_hash_id;
+				b64_hash_id << splt[1] << "\n";
+
+				unsigned char* hash_id = crypto_base64_decode(b64_hash_id.str().c_str(), &b64_out, true);
 
 				stringstream fullpath;
 				fullpath << base_path.str() << filenames[f];
@@ -271,36 +274,38 @@ void identity_load_keys(struct identity* i, string base_dir) {
 void identity_delete(unsigned int identity_id) {
 	struct identity* i = identity_get(identity_id);
 	
-	stringstream base_dir;
-	base_dir << "./identities/" << identity_id << "/";
+	if (i != nullptr) {
+		stringstream base_dir;
+		base_dir << "./identities/" << identity_id << "/";
 
-	for (int c = i->contacts.size() - 1; c >= 0; c--) {
-		contact_delete(&i->contacts[c], identity_id);
-		i->contacts.erase(i->contacts.begin() + c);
-	}
-	stringstream contacts_dir;
-	contacts_dir << base_dir.str() << "contacts/";
-	util_directory_delete(contacts_dir.str());
+		for (int c = i->contacts.size() - 1; c >= 0; c--) {
+			contact_delete(&i->contacts[c], identity_id);
+			i->contacts.erase(i->contacts.begin() + c);
+		}
+		stringstream contacts_dir;
+		contacts_dir << base_dir.str() << "contacts/";
+		util_directory_delete(contacts_dir.str());
 
-	stringstream groups_dir;
-	groups_dir << base_dir.str() << "groups/";
-	util_directory_delete(groups_dir.str());
+		stringstream groups_dir;
+		groups_dir << base_dir.str() << "groups/";
+		util_directory_delete(groups_dir.str());
 
-	vector<string> base_files = util_file_get_all_names(base_dir.str(), 0, 0, false);
-	for (int i = 0; i < base_files.size(); i++) {
-		stringstream full_path;
-		full_path << base_dir.str() << base_files[i];
+		vector<string> base_files = util_file_get_all_names(base_dir.str(), 0, 0, false);
+		for (int i = 0; i < base_files.size(); i++) {
+			stringstream full_path;
+			full_path << base_dir.str() << base_files[i];
 
-		util_file_delete(full_path.str());
-	}
-	util_directory_delete(base_dir.str());
+			util_file_delete(full_path.str());
+		}
+		util_directory_delete(base_dir.str());
 
-	//TODO: memory cleanup
+		//TODO: memory cleanup
 
-	for (int i = 0; i < identities.size(); i++) {
-		if (identities[i].id == identity_id) {
-			identities.erase(identities.begin() + i);
-			break;
+		for (int i = 0; i < identities.size(); i++) {
+			if (identities[i].id == identity_id) {
+				identities.erase(identities.begin() + i);
+				break;
+			}
 		}
 	}
 }
@@ -535,15 +540,18 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 					identity_create(&i, name);
 					identities.push_back(i);
 				}
+				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "contact_add") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				string name = http_request_get_param(request_params, "name");
 				string address = http_request_get_param(request_params, "address");
 				string pubkey(post_content);
+				if (name.length() > 0 && address.length() > 0 && pubkey.length() > 0) {
+					struct contact c;
+					contact_create(&c, name, pubkey, address);
+					identity_contact_add(identity_id, &c);
+				}
 				*status_code = (char*)HTTP_RESPONSE_200;
-				struct contact c;
-				contact_create(&c, name, pubkey, address);
-				identity_contact_add(identity_id, &c);
 			} else if (strstr(request_action, "contact_delete") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
@@ -555,15 +563,19 @@ string identity_interface(enum socket_interface_request_type sirt, vector<string
 			} else if (strstr(request_action, "share") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				string name = http_request_get_param(request_params, "name");
-				content = identity_share(identity_id, name);
+				if (name.length() > 0) {
+					content = identity_share(identity_id, name);
+				}
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "migrate_key") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
 				struct identity* i = identity_get(identity_id);
-				identity_migrate_key(i, 2048);
-				stringstream content_ss;
-				content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
-				content = content_ss.str();
+				if (i != nullptr) {
+					identity_migrate_key(i, 2048);
+					stringstream content_ss;
+					content_ss << "{\n\t\"identity_id\": " << identity_id << "\n}\n";
+					content = content_ss.str();
+				}
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else if (strstr(request_action, "remove_obsolete_keys") == request_action) {
 				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));

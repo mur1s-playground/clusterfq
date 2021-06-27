@@ -76,6 +76,30 @@ string packetset_static_get_state_infos() {
 	return res;
 }
 
+void packetset_remove_pending(struct identity *i, struct contact *c, unsigned char *hash_id) {
+	mutex_wait_for(&c->outgoing_messages_lock);
+	for (int om = c->outgoing_messages.size() - 1; om >= 0; om--) {
+		struct message_meta* mm = c->outgoing_messages[om];
+		bool same = true;
+		std::cout << "checking hash\n";
+		for (int h = 0; h < 16; h++) {
+			std::cout << mm->msg_hash_id[h] << " == " << hash_id[h] << " -> " << (mm->msg_hash_id[h] == hash_id[h]) << "\n";
+			if (mm->msg_hash_id[h] != hash_id[h]) {
+				same = false;
+				break;
+			}
+		}
+		std::cout << "same: " << same << "\n";
+		if (same) {
+			std::cout << "removing pending packetset\n\n\n";
+			free(mm->msg_hash_id);
+			c->outgoing_messages.erase(c->outgoing_messages.begin() + om);
+		}
+	}
+	//TODO: check for after deletion unneccessary session/address migration ps
+	mutex_release(&c->outgoing_messages_lock);
+}
+
 void packetset_packet_limiter() {
 	packetset_counter++;
 	if (packetset_counter > packetset_limit_per_second) {
@@ -124,7 +148,6 @@ void packetset_loop(void* unused) {
 
 				//prepend new session, if the session was dropped, while a message was in queue
 				if (mm->mt == MT_MESSAGE && c->session_key.private_key_len == 0) {
-					
 					message_send_session_key(i, c, true);
 					break;
 				}
@@ -137,9 +160,9 @@ void packetset_loop(void* unused) {
 				if (!ps->complete) {
 					if (ps->transmission_start == 0 || 
 						(ps->transmission_start > 0 && time(nullptr) - ps->transmission_latest_sent >= 2)) {
-						unsigned int chunks_left = packetset_prepare_send(ps);
-						if (chunks_left > 0) {
-							std::cout << "sent: " << om << ": " << chunks_left << "/" << ps->chunks_ct << std::endl;
+						unsigned int chunks_sent = packetset_prepare_send(ps);
+						if (chunks_sent > 0) {
+							std::cout << "sent: " << om << ": " << chunks_sent << "/" << ps->chunks_ct << std::endl;
 
 							packetset_state_info psi;
 

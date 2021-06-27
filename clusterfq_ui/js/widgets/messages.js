@@ -117,6 +117,15 @@ var Messages = function(db, change_dependencies) {
 	
 	this.message_send_container.appendChild(this.message_send_btn);
 	
+	this.message_settings_btn = document.createElement("button");
+	this.message_settings_btn.id = this.widget.name + "_settings_button";
+	this.message_settings_btn.appendChild(document.createTextNode("\u2630"));
+	this.message_settings_btn.onclick = function() {
+		chat.toggle_settings();
+	}
+	
+	this.message_send_container.appendChild(this.message_settings_btn);
+	
 	this.update_selected = function(identity_id, contact_id) {
 		messages.identity_id = identity_id;
 		messages.contact_id = contact_id;

@@ -30,6 +30,7 @@ var Identities = function(db, change_dependencies) {
 	this.add_btn.id = this.widget.name + "_identity_add_btn";
 	this.add_btn.widget_name = this.widget.name;
 	this.add_btn.appendChild(document.createTextNode("+"));
+	this.add_btn.title = "Create identity";
 	this.add_btn.onclick = function() {
 		document.getElementById(this.widget_name + "_add_view").style.display = "block";
 		this.style.display = "none";
@@ -65,6 +66,7 @@ var Identities = function(db, change_dependencies) {
 	this.settings_button = document.createElement("button");
 	this.settings_button.widget_name = this.widget.name;
 	this.settings_button.appendChild(document.createTextNode("\u2630"));
+	this.settings_button.title = "Show/Hide settings";
 	this.settings_button.onclick = function() {
 		identities.toggle_secondary_controls();
 	}
@@ -89,6 +91,7 @@ var Identities = function(db, change_dependencies) {
 		this.cancel_exec = document.createElement("button");
 		this.cancel_exec.widget_name = this.widget.name;
 		this.cancel_exec.appendChild(document.createTextNode("\u26cc"));
+		this.cancel_exec.title = "Cancel creating identity";
 		this.cancel_exec.onclick = function() {
 			document.getElementById(this.widget_name + "_add_view").style.display = "none";
 			document.getElementById(this.widget_name + "_identity_add_btn").style.display = "block";
@@ -99,11 +102,17 @@ var Identities = function(db, change_dependencies) {
 		this.add_exec.obj = this;
 		this.add_exec.widget_name = this.widget.name;
 		this.add_exec.innerHTML = "&#10003;";
+		this.add_exec.title = "Create identity";
 		
 		this.add_exec.onclick = function() {
-			this.obj.add();
-			document.getElementById(this.widget_name + "_add_view").style.display = "none";
-			document.getElementById(this.widget_name + "_identity_add_btn").style.display = "block";
+			var name = document.getElementById(identities.widget.name + "_Name").value;
+			if (name.length == 0) {
+				alert("Name required");
+			} else {		
+				db.query_post("identity/create?name=" + name, "{ }", identities.on_identity_create_response);
+				document.getElementById(this.widget_name + "_add_view").style.display = "none";
+				document.getElementById(this.widget_name + "_identity_add_btn").style.display = "block";
+			}
 		}
 		this.add_view.appendChild(this.add_exec);
 	}
@@ -304,6 +313,7 @@ var Identities = function(db, change_dependencies) {
 				cancel_share_btn.identity_id = element["id"];
 				cancel_share_btn.id = this.widget.name + "_identity_share_" + element["id"] + "_cancel_share_btn";
 				cancel_share_btn.style.display = "none";
+				cancel_share_btn.title = "Cancel sharing identity";
 				cancel_share_btn.appendChild(document.createTextNode("\u26cc"));
 				cancel_share_btn.onclick = function() {
 					var share_to_name = document.getElementById(this.obj.widget.name + "_identity_share_" + this.identity_id + "_share_to_name");
@@ -330,13 +340,17 @@ var Identities = function(db, change_dependencies) {
 					var share_to_name = document.getElementById(this.base_name + "_share_to_name");
 					share_to_name.style.display = "none";
 					
-					var cancel_share_btn = document.getElementById(this.base_name + "_cancel_share_btn");
-					cancel_share_btn.style.display = "none";
+					if (share_to_name.value.length == 0) {
+						alert("Share to name required");
+					} else {
+						var cancel_share_btn = document.getElementById(this.base_name + "_cancel_share_btn");
+						cancel_share_btn.style.display = "none";
 					
-					this.style.display = "none";				
-					this.obj.db.query_post("identity/share?identity_id=" + this.identity_id + "&name_to=" + document.getElementById(this.base_name + "_share_to_name").value, "{ }", identities.on_identity_share_response);
-					var share_btn = document.getElementById(this.base_name);
-					share_btn.style.display = "inline";
+						this.style.display = "none";				
+						this.obj.db.query_post("identity/share?identity_id=" + this.identity_id + "&name_to=" + share_to_name.value, "{ }", identities.on_identity_share_response);
+						var share_btn = document.getElementById(this.base_name);
+						share_btn.style.display = "inline";
+					}
 				}
 				share_controls.appendChild(share_to_name_btn);
 			
@@ -430,11 +444,6 @@ var Identities = function(db, change_dependencies) {
 		identities.update_identities_list();
 	}
 
-	this.add = function() {
-		var name = document.getElementById(identities.widget.name + "_Name").value;
-		db.query_post("identity/create?name=" + name, "{ }", identities.on_identity_create_response);
-	}
-	
 	this.identities_loaded = false;
 	
 	this.on_identities_list_response = function() {

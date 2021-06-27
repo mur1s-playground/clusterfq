@@ -49,6 +49,46 @@ var Chat = function(db, change_dependencies) {
 		}
 	}
 	
+	this.on_message_delete_response = function() {
+		var resp = JSON.parse(this.responseText);
+		if (resp.hasOwnProperty("identity_id") && resp.hasOwnProperty("contact_id") && resp.hasOwnProperty("hash_id")) {
+			if (chat.chat_by_identity_and_contact_id.hasOwnProperty(resp["identity_id"])) {
+				if (chat.chat_by_identity_and_contact_id[resp["identity_id"]].hasOwnProperty(resp["contact_id"])) {
+					if (chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]].hasOwnProperty("chat")) {
+						if (chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]]["chat"].hasOwnProperty(resp["hash_id"])) {
+							delete chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]]["chat"][resp["hash_id"]];
+							var elem = document.getElementById(chat.widget.name + "_chat_" + resp["hash_id"]);
+							if (elem != undefined) {
+								chat.chat.removeChild(elem);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	this.toggle_settings = function() {
+		if (chat.chat_by_identity_and_contact_id.hasOwnProperty(chat.identity_id)) {
+			if (chat.chat_by_identity_and_contact_id[chat.identity_id].hasOwnProperty(chat.contact_id)) {
+				if (chat.chat_by_identity_and_contact_id[chat.identity_id][chat.contact_id].hasOwnProperty("chat")) {
+					for (var hash_id in chat.chat_by_identity_and_contact_id[chat.identity_id][chat.contact_id]["chat"]) {
+						if (chat.chat_by_identity_and_contact_id[chat.identity_id][chat.contact_id]["chat"].hasOwnProperty(hash_id)) {
+							var delete_button = document.getElementById(chat.widget.name + "_msg_delete_" + chat.identity_id + "_" + chat.contact_id + "_" + hash_id);
+							if (delete_button != undefined) {
+								if (delete_button.style.display == "none") {
+									delete_button.style.display = "inline";
+								} else {
+									delete_button.style.display = "none";
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
 	this.update_chat_msg = function(resp, prop) {
 		var elem = document.getElementById(chat.widget.name + "_chat_" + prop);
 		if (elem == undefined) {
@@ -117,17 +157,35 @@ var Chat = function(db, change_dependencies) {
 					msg.appendChild(msg_txt);
 				}
 			}
+			
+			var delete_msg_button = document.createElement("button");
+			delete_msg_button.id = this.widget.name + "_msg_delete_" + resp["identity_id"] + "_" + resp["contact_id"] + "_" + prop;
+			delete_msg_button.obj = this;
+			delete_msg_button.identity_id = resp["identity_id"];
+			delete_msg_button.contact_id = resp["contact_id"];
+			delete_msg_button.hash_id = prop;
+			delete_msg_button.innerHTML = "&#128465;";
+			delete_msg_button.title = "Delete message";
+			delete_msg_button.style.display = "none";
+			delete_msg_button.onclick = function() {
+				var r = confirm("Delete message irreversibly?");
+				if (r == true) {
+					this.obj.db.query_post("message/delete?identity_id=" + this.identity_id + "&contact_id=" + this.contact_id + "&hash_id=" + this.hash_id + "&sdir=" + this.sdir, "{ }", chat.on_message_delete_response);
+				}
+			}
 
 			if (source_is_identity) {
 				elem.className += " chat_out";
 				
 				sender.className = "selected_i";
+				delete_msg_button.sdir = "out";
 				
 				if (resp["chat"][prop]["pending"] == 1) {
 					datetime.appendChild(document.createElement("br"));
 					datetime.appendChild(pending);
 				}
 				
+				elem.appendChild(delete_msg_button);
 				elem.appendChild(datetime);
 				elem.appendChild(sender);
 				elem.appendChild(msg);
@@ -135,11 +193,14 @@ var Chat = function(db, change_dependencies) {
 				elem.className += " chat_in";
 				
 				sender.className = "selected_c";
+				delete_msg_button.sdir = "in";
 				
 				elem.appendChild(msg);
 				elem.appendChild(sender);
 				elem.appendChild(datetime);
+				elem.appendChild(delete_msg_button);
 			}
+			
 			chat.chat.prepend(elem);
 		} else {
 			if (resp["chat"][prop]["pending"] == 0) {
@@ -171,6 +232,8 @@ var Chat = function(db, change_dependencies) {
 		
 		for (var prop in chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]]["chat"]) {
 			var rsp = chat.chat_by_identity_and_contact_id[resp["identity_id"]][resp["contact_id"]];
+			rsp["identity_id"] = resp["identity_id"];
+			rsp["contact_id"] = resp["contact_id"];
 			chat.update_chat_msg(rsp, prop);
 		}
 		

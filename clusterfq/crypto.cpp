@@ -557,7 +557,7 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 			}
 		}
 	}
-	
+
 	bio = BIO_new_mem_buf(t_d, -1);
 	b64 = BIO_new(BIO_f_base64());
 	bio = BIO_push(b64, bio);
