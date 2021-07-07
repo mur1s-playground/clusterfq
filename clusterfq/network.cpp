@@ -125,6 +125,21 @@ void network_packet_append_longlong(struct NetworkPacket* packet, long long num)
 	}
 }
 
+bool network_packet_read_str(struct NetworkPacket* packet, char **out, int* out_len) {
+	if (network_packet_read_int(packet, out_len)) {
+		if (*out_len >= 0 && packet->position + *out_len <= packet->size) {
+			char* result = (char*)malloc(*out_len + 1);
+			*out = result;
+			memcpy(result, (void*)&(packet->data[packet->position]), *out_len);
+			packet->position += *out_len;
+			result[*out_len] = '\0';
+			return true;
+		}
+	}
+	return false;
+}
+
+/*
 char* network_packet_read_str(struct NetworkPacket* packet, int* out_len) {
 	char* result;
 	(*out_len) = network_packet_read_int(packet);
@@ -136,20 +151,43 @@ char* network_packet_read_str(struct NetworkPacket* packet, int* out_len) {
 	result[*out_len] = '\0';
 	return result;
 }
+*/
 
+bool network_packet_read_int(struct NetworkPacket* packet, int* out) {
+	if (packet->position + sizeof(int) <= packet->size) {
+		memcpy(out, (void*)&(packet->data[packet->position]), sizeof(int));
+		packet->position += sizeof(int);
+		return true;
+	}
+	return false;
+}
+
+/*
 int network_packet_read_int(struct NetworkPacket* packet) {
 	int result;
 	memcpy((void*)&result, (void*)&(packet->data[packet->position]), sizeof(int));
 	packet->position += sizeof(int);
 	return result;
 }
+*/
 
+bool network_packet_read_longlong(struct NetworkPacket* packet, long long* out) {
+	if (packet->position + sizeof(long long) <= packet->size) {
+		memcpy(out, (void*)&(packet->data[packet->position]), sizeof(long long));
+		packet->position += sizeof(long long);
+		return true;
+	}
+	return false;
+}
+
+/*
 long long network_packet_read_longlong(struct NetworkPacket* packet) {
 	long long result;
 	memcpy((void*)&result, (void*)&(packet->data[packet->position]), sizeof(long long));
 	packet->position += sizeof(long long);
 	return result;
 }
+*/
 
 void network_packet_destroy(struct NetworkPacket* packet) {
 	free(packet->data);

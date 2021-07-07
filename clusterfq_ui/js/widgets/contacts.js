@@ -89,7 +89,7 @@ var Contacts = function(db, change_dependencies) {
 			if (error_msg.length > 0) {
 				alert(error_msg.join(", "));
 			} else {
-				this.db.query_post("identity/contact_add?identity_id=" + this.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
+				this.obj.db.query_post("identity/contact_add?identity_id=" + this.obj.selected_identity_id + "&name=" + name + "&address=" + address, pubkey, contacts.on_contact_add_response);
 			
 				document.getElementById(this.widget_name + "_add_view").style.display = "none";
 				document.getElementById(this.widget_name + "_contact_add_btn").style.display = "block";

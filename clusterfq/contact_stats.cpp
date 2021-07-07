@@ -37,6 +37,8 @@ void contact_stats_update(struct contact_stats* cs, enum contact_stats_event cse
 														+ (	     1.0f	/(float)max_d) * data;
 	} else if (cse == CSE_POLLUTION) {
 		cs_elem->pollution_count++;
+	} else if (cse == CSE_MALFORMED) {
+		cs_elem->malformed_count++;
 	}
 }
 
@@ -52,6 +54,7 @@ void contact_stats_dump(struct contact_stats* cs, unsigned int day, unsigned int
 	std::cout << "avg_time_per_256_out: " << cs_elem->moving_average_time_per_256_chunk_out << std::endl;
 	std::cout << "avg_time_per_256_out_count: " << cs_elem->moving_average_time_per_256_chunk_out_data_count << std::endl;
 	std::cout << "pollution_count: " << cs_elem->pollution_count << std::endl;
+	std::cout << "malformed_count: " << cs_elem->malformed_count << std::endl;
 	tm* gmtm = gmtime(&cs->last_seen);
 	std::cout << "last_seen (utc): " << asctime(gmtm) << std::endl;
 	std::cout << std::endl;

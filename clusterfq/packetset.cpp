@@ -243,11 +243,16 @@ void packetset_loop(void* unused) {
 							stringstream fname_ss;
 							if (ps->mm->mt == MT_FILE) {
 								ps->mm->np->position = 0;
-								network_packet_read_int(ps->mm->np);
+								int mt_int = 0;
 								int out_len = 0;
-								char* fname = network_packet_read_str(ps->mm->np, &out_len);
-								fname_ss << fname;
-								free(fname);
+								char* fname = nullptr;
+								if (!network_packet_read_int(ps->mm->np, &mt_int) || !network_packet_read_str(ps->mm->np, &fname, &out_len)) {
+									fname_ss << "unreadable_filename";
+								} else {
+									//TODO: sanity check on filename
+									fname_ss << fname;
+									free(fname);
+								}
 								ps->mm->np->position = ps->mm->np->size;
 							}
 

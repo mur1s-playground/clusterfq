@@ -11,7 +11,8 @@ enum contact_stats_event {
 	CSE_RECEIPT_SENT,
 	CSE_TIME_PER_256_CHUNK_IN,
 	CSE_TIME_PER_256_CHUNK_OUT,
-	CSE_POLLUTION
+	CSE_POLLUTION,
+	CSE_MALFORMED
 };
 
 struct contact_stats_element {
@@ -27,6 +28,7 @@ struct contact_stats_element {
 	unsigned int			moving_average_time_per_256_chunk_out_data_count;
 
 	unsigned long long		pollution_count;
+	unsigned long long		malformed_count;
 };
 
 struct contact_stats {
