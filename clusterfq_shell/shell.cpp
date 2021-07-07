@@ -13,7 +13,7 @@ int parseMacro(std::string input);
 void explodeMacro(std::string& command);
 void split(const std::string& str, std::vector<std::string>& v);
 
-void shell_loop(void *param) {
+void shell_loop(void* param) {
 	mutex_init(&shell_cmd_lock);
 	int daemon = 1;
 	std::string input;

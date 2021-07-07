@@ -36,9 +36,6 @@
     <ClCompile Include="util.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
-    <ClCompile Include="shell.cpp">
-      <Filter>Quelldateien</Filter>
-    </ClCompile>
     <ClCompile Include="contact.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
@@ -93,9 +90,6 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="network.h">
-      <Filter>Headerdateien</Filter>
-    </ClInclude>
-    <ClInclude Include="shell.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="thread.h">

@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{f94d3a43-922d-460a-a51c-cf9033773d49}</ProjectGuid>
-    <RootNamespace>clusterfq</RootNamespace>
+    <ProjectGuid>{2653f434-efc1-4bfe-a544-8160308868ea}</ProjectGuid>
+    <RootNamespace>clusterfqshell</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -128,59 +128,32 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS;_WINSOCK_DEPRECATED_NO_WARNINGS;</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\mur1_\Downloads\openssl-1.1.1k\x64\include;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\mur1_\Downloads\openssl-1.1.1k\x64\lib;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);libcrypto.lib;libssl.lib;ws2_32.lib;</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\mur1_\source\repos\clusterfq\x64\Release;</AdditionalLibraryDirectories>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);clusterfq_cl.lib;</AdditionalDependencies>
     </Link>
-    <PostBuildEvent>
-      <Command>call C:\Users\mur1_\source\repos\clusterfq\clusterfq\Makefile.bat</Command>
-    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="address_factory.cpp" />
-    <ClCompile Include="client.cpp" />
-    <ClCompile Include="clusterfq.cpp" />
-    <ClCompile Include="contact.cpp" />
-    <ClCompile Include="contact_stats.cpp" />
-    <ClCompile Include="crypto.cpp" />
-    <ClCompile Include="ecdh.cpp" />
-    <ClCompile Include="group.cpp" />
-    <ClCompile Include="identity.cpp" />
-    <ClCompile Include="message.cpp" />
-    <ClCompile Include="mutex.cpp" />
-    <ClCompile Include="network.cpp" />
-    <ClCompile Include="packetset.cpp" />
-    <ClCompile Include="server.cpp" />
-    <ClCompile Include="socket_interface.cpp" />
-    <ClCompile Include="thread.cpp" />
-    <ClCompile Include="util.cpp" />
+    <ClCompile Include="..\clusterfq\mutex.cpp" />
+    <ClCompile Include="..\clusterfq\thread.cpp" />
+    <ClCompile Include="..\clusterfq\util.cpp" />
+    <ClCompile Include="..\clusterfq_cl\const_defs.cpp" />
+    <ClCompile Include="clusterfq_shell.cpp" />
+    <ClCompile Include="shell.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="address_factory.h" />
-    <ClInclude Include="client.h" />
-    <ClInclude Include="clusterfq.h" />
-    <ClInclude Include="contact.h" />
-    <ClInclude Include="contact_stats.h" />
-    <ClInclude Include="crypto.h" />
-    <ClInclude Include="ecdh.h" />
-    <ClInclude Include="group.h" />
-    <ClInclude Include="identity.h" />
-    <ClInclude Include="message.h" />
-    <ClInclude Include="mutex.h" />
-    <ClInclude Include="network.h" />
-    <ClInclude Include="packetset.h" />
-    <ClInclude Include="server.h" />
-    <ClInclude Include="socket_interface.h" />
-    <ClInclude Include="thread.h" />
-    <ClInclude Include="util.h" />
+    <ClInclude Include="..\clusterfq\mutex.h" />
+    <ClInclude Include="..\clusterfq\thread.h" />
+    <ClInclude Include="..\clusterfq\util.h" />
+    <ClInclude Include="..\clusterfq_cl\const_defs.h" />
+    <ClInclude Include="shell.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

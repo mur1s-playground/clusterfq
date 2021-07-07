@@ -190,6 +190,8 @@ void contact_delete(struct contact* c, unsigned int identity_id) {
 	}
 	util_directory_delete(path.str());
 
+	address_factory_remove_address(c->address_rev, AFST_CONTACT, identity_id, c->id);
+
 	//TODO: memory cleanup
 }
 
@@ -666,8 +668,10 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					} else {
 						if (c->pub_key.public_key_len == 0) {
 							c->name = string(name);
-							c->address = string(address_rev);
-							contact_address_save(c, i->id);
+							if (address_factory_check_multicast_address(string(address_rev))) {
+								c->address = string(address_rev);
+								contact_address_save(c, i->id);
+							}
 							crypto_key_init(&c->pub_key);
 							c->pub_key.public_key = pubkey;
 							c->pub_key.public_key_len = pubkey_len;
@@ -694,25 +698,29 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 
 						if (c->session_key.private_key_len == 0) {
 							message_send_session_key(i, c);
-							memcpy(c->session_key.public_key, pubkey, pubkey_len);
+							if (pubkey_len == c->session_key.public_key_len) {
+								memcpy(c->session_key.public_key, pubkey, pubkey_len);
 
-							crypto_key_sym_finalise(&c->session_key);
-							mutex_wait_for(&c->session_key_inc_lock);
-							crypto_key_copy(&c->session_key, &c->session_key_inc);
-							mutex_release(&c->session_key_inc_lock);
-							c->session_established = time(nullptr);
+								crypto_key_sym_finalise(&c->session_key);
+								mutex_wait_for(&c->session_key_inc_lock);
+								crypto_key_copy(&c->session_key, &c->session_key_inc);
+								mutex_release(&c->session_key_inc_lock);
+								c->session_established = time(nullptr);
 
-							contact_sessionkey_save(c, i->id);
+								contact_sessionkey_save(c, i->id);
+							}
 						} else if (c->session_key.public_key_len > 0) {
-							memcpy(c->session_key.public_key, pubkey, pubkey_len);
+							if (pubkey_len == c->session_key.public_key_len) {
+								memcpy(c->session_key.public_key, pubkey, pubkey_len);
 
-							crypto_key_sym_finalise(&c->session_key);
-							mutex_wait_for(&c->session_key_inc_lock);
-							crypto_key_copy(&c->session_key, &c->session_key_inc);
-							mutex_release(&c->session_key_inc_lock);
-							c->session_established = time(nullptr);
+								crypto_key_sym_finalise(&c->session_key);
+								mutex_wait_for(&c->session_key_inc_lock);
+								crypto_key_copy(&c->session_key, &c->session_key_inc);
+								mutex_release(&c->session_key_inc_lock);
+								c->session_established = time(nullptr);
 
-							contact_sessionkey_save(c, i->id);
+								contact_sessionkey_save(c, i->id);
+							}
 						}
 
 						mutex_release(&c->outgoing_messages_lock);
@@ -730,12 +738,14 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 					} else {
 
 						mutex_wait_for(&c->outgoing_messages_lock);
-							std::cout << "migrated address from: " << c->address << " to: " << address << std::endl;
+						std::cout << "migrated address from: " << c->address << " to: " << address << std::endl;
+						if (address_factory_check_multicast_address(string(address))) {
 							c->address = string(address);
 							contact_address_save(c, i->id);
-							mutex_release(&c->outgoing_messages_lock);
+						}
+						mutex_release(&c->outgoing_messages_lock);
 
-							free(address);
+						free(address);
 
 						if (chunks_total == 1) {
 							message_send_receipt(i, c, ps, hash_id, chunk_id);

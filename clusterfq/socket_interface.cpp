@@ -88,15 +88,22 @@ void socket_interface_process_client(void* param) {
 
     vector<string> request = vector<string>();
 
+    int timeout = 0;
+
     while (client->state != NS_ERROR) {
         enum socket_interface_request_type sirt = SIRT_GET;
 
         unsigned int out_len = 0;
         network_socket_read(client, &buffer, 1, nullptr, &out_len);
         if (out_len != 1) {
+            if (client->state == NS_ERROR || timeout > 10000) {
+                break;
+            }
             util_sleep(16);
+            timeout += 16;
             continue;
         }
+        timeout = 0;
         //std::cout << buffer;
         last_char = (int)buffer;
         if (char_ct < 1024) {
@@ -220,7 +227,12 @@ void socket_interface_process_client(void* param) {
 
                 int tries = 0;
                 do {
-                    if (tries > 0) util_sleep(16);
+                    if (tries > 0) {
+                        if (client->state == NS_ERROR) {
+                            break;
+                        }
+                        util_sleep(16);
+                    }
                     network_socket_read(client, &buffer, 1, nullptr, &out_len);
                     tries++;
                 } while (out_len != 1);

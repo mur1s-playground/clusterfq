@@ -7,9 +7,9 @@
 #include <vector>
 #include <string>
 
-#include "mutex.h"
+#include "../clusterfq/mutex.h"
 
-void shell_loop(void *param);
+void shell_loop(void* param);
 
 extern struct mutex	shell_cmd_lock;
 extern std::vector<std::vector<std::string>>	shell_cmd_queue;

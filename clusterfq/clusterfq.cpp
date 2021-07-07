@@ -5,7 +5,6 @@
 #include "crypto.h"
 #include "network.h"
 #include "identity.h"
-#include "shell.h"
 #include "mutex.h"
 #include "address_factory.h"
 #include "server.h"
@@ -50,80 +49,6 @@ int main(int argc, char **argv) {
 
     socket_interface_static_init(8080);
     socket_interface_listen_loop();
-
-    /* START SHELL */
-    //thread_create(&main_thread_pool, (void *)&shell_loop, nullptr);
-    /* ----------- */
-
-    /* PROCESS SHELL COMMANDS */
-    /*
-    while (true) {
-        mutex_wait_for(&shell_cmd_lock);
-        for (int sc = 0; sc < shell_cmd_queue.size(); sc++) {
-            std::vector<std::string> args = shell_cmd_queue[sc];
-            if (strstr(args[0].c_str(), "identity_create") != nullptr) {
-                struct identity i;
-                identity_create(&i, args[1]);
-                identities.push_back(i);
-            } else if (strstr(args[0].c_str(), "identity_load") != nullptr) {
-                identity_load(stoi(args[1]));
-            } else if (strstr(args[0].c_str(), "identities_load") != nullptr) {
-                identities_load();
-            } else if (strstr(args[0].c_str(), "identities_list") != nullptr) {
-                identities_list();
-            } else if (strstr(args[0].c_str(), "identity_contact_add") != nullptr) {
-                struct contact c;
-                contact_create(&c, args[2], args[3], args[4]);
-                identity_contact_add(stoi(args[1]), &c);
-            } else if (strstr(args[0].c_str(), "identity_share") != nullptr) {
-                identity_share(stoi(args[1]), args[2]);
-            } else if (strstr(args[0].c_str(), "identity_contact_list") != nullptr) {
-                identity_contact_list(stoi(args[1]));
-            } else if (strstr(args[0].c_str(), "identity_migrate_key") != nullptr) {
-                struct identity* i = identity_get(stoi(args[1]));
-                identity_migrate_key(i, stoi(args[2]));
-            } else if (strstr(args[0].c_str(), "identity_remove_obsolete_keys") != nullptr) {
-                struct identity* i = identity_get(stoi(args[1]));
-                identity_remove_obsolete_keys(i);
-            } else if (strstr(args[0].c_str(), "address_factory_sender_get") != nullptr) {
-                vector<struct address_factory_sender> afs = address_factory_sender_get(args[1]);
-                    std::cout << std::endl;
-                    for (int a = 0; a < afs.size(); a++) {
-                        std::cout << afs[a].afst << std::endl;
-                        std::cout << afs[a].identity_id << std::endl;
-                        std::cout << afs[a].sender_id << std::endl;
-                    }
-                    std::cout << "/----------------/" << std::endl;
-            } else if (strstr(args[0].c_str(), "address_factory_clear") != nullptr) {
-                address_factory_clear();
-            } else if (strstr(args[0].c_str(), "message_send_file") != nullptr) {
-                message_send_file(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str());
-            } else if (strstr(args[0].c_str(), "message_send") != nullptr) {
-                message_send(stoi(args[1]), stoi(args[2]), (unsigned char*)args[3].c_str(), strlen(args[3].c_str()));
-            } else if (strstr(args[0].c_str(), "contact_save") != nullptr) {
-                struct identity* i = identity_get(stoi(args[1]));
-                struct contact* c = contact_get(&i->contacts, stoi(args[2]));
-                stringstream cp;
-                cp << "./identities/" << i->id << "/contacts/" << c->id << "/";
-                contact_save(c, cp.str());
-            } else if (strstr(args[0].c_str(), "contact_stats_dump") != nullptr) {
-                struct identity *i = identity_get(stoi(args[1]));
-                struct contact* c = contact_get(&i->contacts, stoi(args[2]));
-                contact_stats_dump(c->cs, stoi(args[3]), stoi(args[4]));
-            } else if(strstr(args[0].c_str(), "contact_get_chat") != nullptr) {
-                contact_get_chat(stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]));
-            } else if (strstr(args[0].c_str(), "packetset_loop_start") != nullptr) {
-                packetset_loop_start_if_needed();
-            } else if (strstr(args[0].c_str(), "debug_toggle") != nullptr) {
-                debug_toggle = !debug_toggle;
-            }
-        }
-        shell_cmd_queue.clear();
-        mutex_release(&shell_cmd_lock);
-        util_sleep(1000);
-    }
-    */
-    /* ---------------------- */
 
     /* TEST ENCRYPTION/DECRYPTION */
     /*
