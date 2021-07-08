@@ -8,6 +8,7 @@ namespace ClusterFQ {
 		socket_interface_address = address;
 		socket_interface_port = port;
 		paramset__static_init();
+		return true;
 	}
 
 	string ClusterFQ::query(const char* module, const char* module_action, int paramset_id) {

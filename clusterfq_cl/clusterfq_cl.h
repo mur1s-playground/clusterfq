@@ -1,7 +1,17 @@
+#ifdef _WIN32
+
 #ifdef CLUSTERFQCL_API_EXPORTS
 #define CLUSTERFQCL_API __declspec(dllexport) 
 #else
 #define CLUSTERFQCL_API __declspec(dllimport) 
+#endif
+
+#else 
+#define CLUSTERFQCL_API
+
+#define EXPORT __attribute__((visibility("default")))
+#define IMPORT
+
 #endif
 
 #include <string>

@@ -11,6 +11,11 @@
 #include "../clusterfq_cl/clusterfq_cl.h"
 #include "../clusterfq_cl/const_defs.h"
 
+#ifdef _WIN32
+#else
+#include <cstring>
+#endif
+
 struct ThreadPool main_thread_pool;
 
 int main() {

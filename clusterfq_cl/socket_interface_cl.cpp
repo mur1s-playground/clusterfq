@@ -10,6 +10,12 @@
 #include <sstream>
 #include <iostream>
 
+#ifdef _WIN32
+#else
+#include <cstring>
+#include <climits>
+#endif
+
 string socket_interface_address = "::1";
 int socket_interface_port = 8080;
 
