@@ -34,5 +34,4 @@ void address_factory_remove_address(string address, enum address_factory_sender_
 vector<struct address_factory_sender> address_factory_sender_get(string address);
 void address_factory_clear();
 
-void address_factory_fix_address_rfc(char *potentially_broken_address_representation);
 bool address_factory_check_multicast_address(string address);

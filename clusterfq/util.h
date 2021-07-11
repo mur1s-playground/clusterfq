@@ -30,3 +30,5 @@ vector<string> util_file_get_all_names(const string path, time_t timerange_start
 
 vector<string>	util_split(const std::string& str, const std::string& separator);
 void util_sleep(const unsigned int milliseconds);
+
+void util_ipv6_address_to_normalform(char* ipv6_address);

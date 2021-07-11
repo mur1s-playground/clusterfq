@@ -13,6 +13,11 @@
 #include <unistd.h>
 #endif
 
+#include <vector>
+#include <string>
+
+using namespace std;
+
 enum NetworkState {
 	NS_CREATED,
 	NS_BOUND,
@@ -44,6 +49,48 @@ struct NetworkPacket {
 	size_t position;
 };
 
+enum NetworkAddressOrigin {
+	NAPO_OTHER, 
+	NAPO_MANUAL, 
+	NAPO_WELLKNOWN,
+	NAPO_DHCP,
+	NAPO_LINK,
+	NAPO_RANDOM,
+	NAPO_ROUTERADVERTISEMENT
+};
+
+enum NetworkAddressState {
+	NAS_INVALID, 
+	NAS_TENTATIVE, 
+	NAS_DUPLICATE, 
+	NAS_DEPRECATED, 
+	NAS_PREFERRED
+};
+
+enum NetworkAddressScope {
+	NASC_LOOPBACK,
+	NASC_LINK_LOCAL_UNICAST,
+	NASC_UNIQUE_LOCAL_UNICAST,
+	NASC_MULTICAST,
+	NASC_GLOBAL_UNICAST
+};
+
+struct NetworkAddress {
+	string address;
+	enum NetworkAddressScope scope;
+	unsigned int interface_id;
+	string interface_alias;
+	bool is_unicast;
+	unsigned int prefix_length;
+	enum NetworkAddressOrigin prefix_origin;
+	enum NetworkAddressOrigin suffix_origin;
+	time_t valid_lifetime;
+	time_t preferred_lifetime;
+	enum NetworkAddressState state;
+	bool skipassource;
+	bool connected;
+};
+
 extern void network_init(struct Network* network);
 extern void network_destroy(struct Network* network);
 
@@ -72,7 +119,11 @@ extern void network_packet_destroy(struct NetworkPacket* packet);
 
 /* TCP */
 
-extern char* network_tcp_network_address_get(long scope, int port);
+extern void network_address_dump(struct NetworkAddress* na);
+extern vector<struct NetworkAddress> network_address_get();
+extern string network_address_get_random_in_subnet(struct NetworkAddress *na, const unsigned char* random_data_39);
+void network_address_add(int interface_id, string interface_alias, string address, string prefix_length);
+void network_address_delete(int interface_id, string interface_alias, string address, string prefix_length);
 
 extern void network_tcp_socket_create(struct Network* network, const char* network_address, long scope, int network_port);
 

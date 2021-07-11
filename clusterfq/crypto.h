@@ -53,12 +53,11 @@ extern unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_
 extern unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len);
 
 /* ENCODE/DECODE */
-
 char* crypto_base64_encode(unsigned char* to_encode, size_t length, bool slash_to_underscore = false);
 unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, bool underscore_to_slash = false);
 
-/* UTIL */
 
+/* UTIL */
 char* crypto_key_fingerprint(struct Key* pubkey);
 extern void crypto_key_dump(struct Key* key);
 extern void crypto_key_list_dump(struct Key** key_list, int key_list_len);

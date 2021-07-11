@@ -9,6 +9,10 @@ cd C:\Users\mur1_\source\repos\clusterfq\clusterfq\
 "C:\Program Files\PuTTY\pscp.exe" -i "C:\Users\mur1_\Desktop\w10.ppk" -r C:\Users\mur1_\source\repos\clusterfq\x64\Release\css mur1@%lappy%:/home/mur1/repos/clusterfq/
 "C:\Program Files\PuTTY\pscp.exe" -i "C:\Users\mur1_\Desktop\w10.ppk" -r C:\Users\mur1_\source\repos\clusterfq\x64\Release\img mur1@%lappy%:/home/mur1/repos/clusterfq/
 
+cd C:\Users\mur1_\source\repos\clusterfq\clusterfq_elevated\
+"C:\Program Files\PuTTY\pscp.exe" -i "C:\Users\mur1_\Desktop\w10.ppk" -r C:\Users\mur1_\source\repos\clusterfq\clusterfq_elevated\ mur1@%lappy%:/home/mur1/repos/clusterfq_elevated/
+"C:\Program Files\PuTTY\putty.exe" -ssh -2 -i "C:\Users\mur1_\Desktop\w10.ppk" -m c:remote_make.cmd mur1@%lappy%
+
 cd C:\Users\mur1_\source\repos\clusterfq\clusterfq_cl\
 "C:\Program Files\PuTTY\pscp.exe" -i "C:\Users\mur1_\Desktop\w10.ppk" -r C:\Users\mur1_\source\repos\clusterfq\clusterfq_cl\ mur1@%lappy%:/home/mur1/repos/clusterfq_cl/
 "C:\Program Files\PuTTY\putty.exe" -ssh -2 -i "C:\Users\mur1_\Desktop\w10.ppk" -m c:remote_make.cmd mur1@%lappy%

@@ -50,6 +50,39 @@ int main(int argc, char **argv) {
     socket_interface_static_init(8080);
     socket_interface_listen_loop();
 
+    /* NETWORK ADDRESS TESTING */
+    /*
+    vector<struct NetworkAddress> na = network_address_get();
+
+    int na_i = -1;
+
+    for (int n = 0; n < na.size(); n++) {
+        if (na[n].prefix_length < 128 && na[n].connected && na[n].scope == NASC_UNIQUE_LOCAL_UNICAST) {
+            na_i = n;
+        }
+        network_address_dump(&na[n]);
+    }
+
+    if (na_i > -1) {
+        struct NetworkAddress* na_c = &na[na_i];
+
+        char* random_data = crypto_random(39);
+        string random_addr = network_address_get_random_in_subnet(na_c, (unsigned char*)random_data);
+        free(random_data);
+
+        std::cout << random_addr << std::endl;
+
+        network_address_add(na_c->interface_id, na_c->interface_alias, random_addr, string("64"));
+
+        vector<struct NetworkAddress> na_ = network_address_get();
+        for (int n = 0; n < na_.size(); n++) {
+            network_address_dump(&na_[n]);
+        }
+
+        network_address_delete(na_c->interface_id, na_c->interface_alias, random_addr, string("64"));
+    }
+    */
+
     /* TEST ENCRYPTION/DECRYPTION */
     /*
     struct Key k1, k2, s1, s2;
