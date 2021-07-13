@@ -159,6 +159,7 @@
   <ItemGroup>
     <ClCompile Include="..\clusterfq\mutex.cpp" />
     <ClCompile Include="..\clusterfq\network.cpp" />
+    <ClCompile Include="..\clusterfq\shared_memory_buffer.cpp" />
     <ClCompile Include="..\clusterfq\thread.cpp" />
     <ClCompile Include="..\clusterfq\util.cpp" />
     <ClCompile Include="clusterfq_cl.cpp" />
@@ -169,6 +170,7 @@
   <ItemGroup>
     <ClInclude Include="..\clusterfq\mutex.h" />
     <ClInclude Include="..\clusterfq\network.h" />
+    <ClInclude Include="..\clusterfq\shared_memory_buffer.h" />
     <ClInclude Include="..\clusterfq\thread.h" />
     <ClInclude Include="..\clusterfq\util.h" />
     <ClInclude Include="clusterfq_cl.h" />

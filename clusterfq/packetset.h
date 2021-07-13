@@ -49,6 +49,8 @@ struct packetset_state_info {
 	enum packetset_state ps;
 
 	enum message_type mt;
+
+	char* info;
 };
 
 void packetset_static_add_state_info(struct packetset_state_info psi);

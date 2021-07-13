@@ -39,6 +39,9 @@
     <ClCompile Include="const_defs.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="..\clusterfq\shared_memory_buffer.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="clusterfq_cl.h">
@@ -63,6 +66,9 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="const_defs.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="..\clusterfq\shared_memory_buffer.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

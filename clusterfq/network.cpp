@@ -656,7 +656,7 @@ vector<struct NetworkAddress> network_address_get() {
 							na.valid_lifetime = 0;
 						} else {
 							vector<string> t1_s = util_split(t1, "sec");
-							na.valid_lifetime = stoi(t1_s[0].c_str());
+							na.valid_lifetime = time(nullptr) + stoi(t1_s[0].c_str());
 						}
 
 						string t2 = util_trim(splt[10], "\r\n\t ");
@@ -664,7 +664,7 @@ vector<struct NetworkAddress> network_address_get() {
 							na.preferred_lifetime = 0;
 						} else {
 							vector<string> t2_s = util_split(t2, "sec");
-							na.preferred_lifetime = stoi(t2_s[0].c_str());
+							na.preferred_lifetime = time(nullptr) + stoi(t2_s[0].c_str());
 						}
 						if (na.scope == NASC_GLOBAL_UNICAST || na.scope == NASC_LINK_LOCAL_UNICAST || na.scope == NASC_UNIQUE_LOCAL_UNICAST) {
 							na.is_unicast = true;
@@ -933,7 +933,61 @@ void network_tcp_socket_client_connect(struct Network* network) {
 	network->send = &network_socket_send;
 	network->read = &network_socket_read;
 	network->state = NS_CONNECTED;
+}
+
+void network_udp_unicast_socket_server_create(struct Network* network, string address, int network_port) {
+	int ret;
+#ifdef _WIN32
+	WSADATA wsa_data;
+	if ((ret = WSAStartup(MAKEWORD(2, 2), &wsa_data)) != 0) {
+		fprintf(stderr, "ERROR: WSAStartup failed with error %d\n", ret);
+		WSACleanup();
+		network->state = NS_ERROR;
+		return;
 	}
+	ADDRINFO hints;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET6;
+	hints.ai_socktype = SOCK_DGRAM;
+	char port[6];
+	sprintf(&port[0], "%d", network_port);
+	ret = getaddrinfo(address.c_str(), port, &hints, &(network->ip6addr));
+	if (ret != 0) {
+		fprintf(stderr, "ERROR: Cannot resolve address and port, error %d: %s\n", ret, gai_strerror(ret));
+		WSACleanup();
+		network->state = NS_ERROR;
+		return;
+	}
+#else
+	network->ip6addr.sin6_family = AF_INET6;
+	network->ip6addr.sin6_port = htons(network_port);
+	if (inet_pton(AF_INET6, address.c_str(), &(network->ip6addr.sin6_addr)) < 1) {
+		fprintf(stderr, "ERROR: Cannot resolve address and port\n");
+		network->state = NS_ERROR;
+		return;
+	}
+#endif
+	network->socket = socket(AF_INET6, SOCK_DGRAM, 0);
+	if (network->socket < 0) {
+		fprintf(stderr, "ERROR: Unable to create socket\n");
+		network->state = NS_ERROR;
+		return;
+	}
+	network->state = NS_CREATED;
+
+#ifdef _WIN32
+	if (bind(network->socket, network->ip6addr->ai_addr, (int)network->ip6addr->ai_addrlen) == SOCKET_ERROR) {
+#else
+	if (bind(network->socket, (struct sockaddr*)&(network->ip6addr), sizeof(network->ip6addr)) < 0) {
+#endif
+		fprintf(stderr, "ERROR: Unable to bind socket\n");
+		network->state = NS_ERROR;
+		return;
+	}
+	network->read = &network_socket_read;
+	network->state = NS_BOUND;
+}
+
 
 void network_udp_multicast_socket_server_create(struct Network* network, int network_port) {
 	int ret;

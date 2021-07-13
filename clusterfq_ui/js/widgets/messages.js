@@ -20,7 +20,7 @@ var Messages = function(db, change_dependencies) {
 	this.message_type.obj = this;
 	this.message_type.id = this.widget.name + "_type_select";
 	this.message_type.onchange = function() {
-		if (this.selectedIndex == 0) {
+		if (this.selectedIndex == 0 || this.selectedIndex == 2) {
 			document.getElementById(this.obj.widget.name + "_file_search").style.display = "none";
 			document.getElementById(this.obj.widget.name + "_input").style.display = "block";
 		} else {
@@ -36,6 +36,10 @@ var Messages = function(db, change_dependencies) {
 	this.message_type_option_file = document.createElement("option");
 	this.message_type_option_file.appendChild(document.createTextNode("File"));
 	this.message_type.appendChild(this.message_type_option_file);
+	
+	this.message_type_option_lossy_pipe = document.createElement("option");
+	this.message_type_option_lossy_pipe.appendChild(document.createTextNode("Lossy pipe"));
+	this.message_type.appendChild(this.message_type_option_lossy_pipe);
 	
 	this.message_send_container.appendChild(this.message_type);
 		
@@ -61,6 +65,13 @@ var Messages = function(db, change_dependencies) {
 					this.value = "";
 				
 					this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=text", input_text, this.obj.on_message_send_initiated);
+				}
+			} else if (type.innerHTML == "Lossy pipe") {
+				if (this.value.length > 0) {
+					var input_text = this.value;
+					this.value = "";
+				
+					this.obj.db.query_post("message/request_lossy_pipe?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id, input_text, this.obj.on_message_send_initiated);
 				}
 			}
 		}
@@ -104,6 +115,13 @@ var Messages = function(db, change_dependencies) {
 				this.value = "";
 			
 				this.obj.db.query_post("message/send?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id + "&type=text", input_text, this.obj.on_message_send_initiated);
+			}
+		} else if (type.innerHTML == "Lossy pipe") {
+			if (this.value.length > 0) {
+				var input_text = this.value;
+				this.value = "";
+			
+				this.obj.db.query_post("message/request_lossy_pipe?identity_id=" + this.obj.identity_id + "&contact_id=" + this.obj.contact_id, input_text, this.obj.on_message_send_initiated);
 			}
 		} else if (type.innerHTML == "File") {
 			var input = document.getElementById(messages.widget.name + "_file_search");

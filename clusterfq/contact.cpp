@@ -3,6 +3,7 @@
 #include "util.h"
 #include "address_factory.h"
 #include "crypto.h"
+#include "lossy_pipe.h"
 
 #include <sstream>
 #include <iostream>
@@ -423,6 +424,7 @@ void contact_add_message(struct contact* c, struct message_meta* mm, bool prepen
 	psi.contact_id = c->id;
 	psi.ps = PS_OUT_CREATED;
 	psi.mt = mm->mt;
+	psi.info = nullptr;
 
 	packetset_static_add_state_info(psi);
 
@@ -592,6 +594,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 		psi.contact_id = c->id;
 		psi.ps = PS_IN_PENDING;
 		psi.mt = MT_UNKNOWN;
+		psi.info = nullptr;
 
 		packetset_static_add_state_info(psi);
 		
@@ -639,6 +642,9 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 			}
 
 			enum message_type mt = (enum message_type) mt_int;
+
+			stringstream psi_info;
+
 			if (verified_c == false) {
 				if (mt == MT_ESTABLISH_CONTACT) {
 					ps->processed = true;
@@ -861,6 +867,44 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 							message_send_receipt(i, c, ps, hash_id, chunk_id);
 						}
 					}
+				} else if (mt == MT_REQUEST_LOSSY_PIPE) {
+					int descriptor_len = 0;
+					char* descriptor = nullptr;
+					int mtu = 0;
+					if (!network_packet_read_str(npc, &descriptor, &descriptor_len) || !network_packet_read_int(npc, &mtu)) {
+						if (descriptor != nullptr) free(descriptor);
+					} else {
+						packetset_state_info psi;
+
+						psi_info << descriptor << ";" << mtu;
+						
+						std::cout << std::endl << "REQUEST_LOSSY_PIPE " << psi_info.str() << std::endl;
+
+						free(descriptor);
+						if (chunks_total == 1) {
+							message_send_receipt(i, c, ps, hash_id, chunk_id);
+						}
+					}
+				} else if (mt == MT_LOSSY_PIPE) {
+					int descriptor_len = 0;
+					char* descriptor = nullptr;
+					int mtu = 0;
+					int address_len = 0;
+					char* address = nullptr;
+					int port = 0;
+					std::cout << std::endl << "LOSSY_PIPE" << std::endl;
+
+					if (!network_packet_read_str(npc, &descriptor, &descriptor_len) || !network_packet_read_int(npc, &mtu) || !network_packet_read_str(npc, &address, &address_len) || !network_packet_read_int(npc, &port)) {
+						if (descriptor != nullptr) free(descriptor);
+						if (address != nullptr) free(address);
+					} else {
+						struct lossy_pipe* lp = new lossy_pipe();
+						lossy_pipe_client_init(lp, descriptor, mtu, (unsigned char *)address, port, &c->session_key_inc);
+						psi_info << lp->smb.name << ";" << lp->smb.size << ";" << lp->smb.slots << ";" << lp->smb.drop_skip;
+						if (chunks_total == 1) {
+							message_send_receipt(i, c, ps, hash_id, chunk_id);
+						}
+					}
 				} else if (mt == MT_RECEIPT || mt == MT_RECEIPT_COMPLETE) {
 						unsigned int receipt_of_chunk = 0;
 						if (!network_packet_read_int(npc, (int*)&receipt_of_chunk)) {
@@ -912,6 +956,14 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 				psi.contact_id = c->id;
 				psi.ps = PS_IN_COMPLETE;
 				psi.mt = mt;
+
+				if (psi_info.str().length() == 0) {
+					psi.info = nullptr;
+				} else {
+					psi.info = (char*)malloc(psi_info.str().length() + 1);
+					memcpy(psi.info, psi_info.str().c_str(), psi_info.str().length());
+					psi.info[psi_info.str().length()] = '\0';
+				}
 
 				packetset_static_add_state_info(psi);
 			}
@@ -1069,7 +1121,19 @@ string contact_interface(enum socket_interface_request_type sirt, vector<string>
 				*status_code = (char*)HTTP_RESPONSE_404;
 			}
 		} else if (sirt == SIRT_POST) {
-			*status_code = (char*)HTTP_RESPONSE_404;
+			if (strstr(request_action, "grant_permission") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				int message_type = stoi(http_request_get_param(request_params, "mt"));
+				enum message_type mt = (enum message_type)message_type;
+				if (mt == MT_REQUEST_LOSSY_PIPE) {
+					string descriptor_mtu(post_content);
+					content = message_send_lossy_pipe(identity_id, contact_id, descriptor_mtu);
+				}
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else {
+				*status_code = (char*)HTTP_RESPONSE_404;
+			}
 		} else if (sirt == SIRT_OPTIONS) {
 			content = "Access-Control-Allow-Headers: Content-Type\n";
 			*status_code = (char*)HTTP_RESPONSE_200;

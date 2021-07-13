@@ -154,11 +154,13 @@
     <ClCompile Include="ecdh.cpp" />
     <ClCompile Include="group.cpp" />
     <ClCompile Include="identity.cpp" />
+    <ClCompile Include="lossy_pipe.cpp" />
     <ClCompile Include="message.cpp" />
     <ClCompile Include="mutex.cpp" />
     <ClCompile Include="network.cpp" />
     <ClCompile Include="packetset.cpp" />
     <ClCompile Include="server.cpp" />
+    <ClCompile Include="shared_memory_buffer.cpp" />
     <ClCompile Include="socket_interface.cpp" />
     <ClCompile Include="thread.cpp" />
     <ClCompile Include="util.cpp" />
@@ -173,11 +175,13 @@
     <ClInclude Include="ecdh.h" />
     <ClInclude Include="group.h" />
     <ClInclude Include="identity.h" />
+    <ClInclude Include="lossy_pipe.h" />
     <ClInclude Include="message.h" />
     <ClInclude Include="mutex.h" />
     <ClInclude Include="network.h" />
     <ClInclude Include="packetset.h" />
     <ClInclude Include="server.h" />
+    <ClInclude Include="shared_memory_buffer.h" />
     <ClInclude Include="socket_interface.h" />
     <ClInclude Include="thread.h" />
     <ClInclude Include="util.h" />

@@ -6,6 +6,7 @@
 #include "address_factory.h"
 #include "packetset.h"
 #include "util.h"
+#include "lossy_pipe.h"
 
 #include <sstream>
 #include <iostream>
@@ -484,6 +485,103 @@ string message_delete(int identity_id, int contact_id, string hash_id, string sd
 	return result.str();
 }
 
+string message_send_lossy_pipe(unsigned int identity_id, unsigned int contact_id, string descriptor_mtu) {
+	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return "{ }";
+	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return "{ }";
+
+	if (!message_check_pre(i, c)) return "{ }";
+
+	vector<string> dm = util_split(descriptor_mtu, ";");
+
+	unsigned char* address = nullptr;
+	int port = 0;
+	
+	struct lossy_pipe* lp = new lossy_pipe();
+	if (lossy_pipe_init(lp, dm[0], stoi(dm[1]), &address, &port, &c->session_key)) {
+		struct message_meta* mm = new struct message_meta();
+		mm->mt = MT_LOSSY_PIPE;
+		mm->identity_id = identity_id;
+		mm->contact_id = contact_id;
+		mm->packetset_id = UINT_MAX;
+
+		unsigned int size_est = 1 + descriptor_mtu.length() + 80 + sizeof(int) + 17 + 6 + 10 + 40;
+
+		struct NetworkPacket* np = new NetworkPacket();
+		network_packet_create(np, size_est);
+		network_packet_append_int(np, MT_LOSSY_PIPE);
+		network_packet_append_str(np, dm[0].c_str(), dm[0].length());
+		network_packet_append_int(np, stoi(dm[1]));
+		network_packet_append_str(np, (char *)address, strlen((char*)address));
+		network_packet_append_int(np, port);
+
+		mm->np = np;
+
+		//MSG HASH-ID
+		mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+		contact_add_message(c, mm);
+
+		packetset_loop_start_if_needed();
+	}
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identity_id\": " << identity_id << ",\n";
+	result << "\t\"contact_id\": " << contact_id << ",\n";
+	if (address != nullptr) {
+		result << "\t\"address\": \"" << address << "\",\n";
+		result << "\t\"port\": " << port << ",\n";
+		result << "\t\"smb\": \"" << lp->smb.name << "\",\n";
+		free(address);
+	}
+	result << "\t\"descriptor\": \"" << dm[0] << "\",\n";
+	result << "\t\"mtu\": " << dm[1] << "\n";
+	
+	result << "}\n";
+	return result.str();
+}
+
+string message_request_lossy_pipe(unsigned int identity_id, unsigned int contact_id, string pipe_descriptor, int mtu) {
+	struct identity* i = identity_get(identity_id);
+	if (i == nullptr) return "{ }";
+	struct contact* c = contact_get(&i->contacts, contact_id);
+	if (c == nullptr) return "{ }";
+
+	if (!message_check_pre(i, c)) return "{ }";
+
+	struct message_meta* mm = new struct message_meta();
+	mm->mt = MT_REQUEST_LOSSY_PIPE;
+	mm->identity_id = identity_id;
+	mm->contact_id = contact_id;
+	mm->packetset_id = UINT_MAX;
+
+	//PACKET
+	unsigned int size_est = 1 + pipe_descriptor.length() + sizeof(int) + 17 + 6 + 10 + 40;
+
+	struct NetworkPacket* np = new NetworkPacket();
+	network_packet_create(np, size_est);
+	network_packet_append_int(np, MT_REQUEST_LOSSY_PIPE);
+	network_packet_append_str(np, pipe_descriptor.c_str(), pipe_descriptor.length());
+	network_packet_append_int(np, mtu);
+
+	mm->np = np;
+
+	//MSG HASH-ID
+	mm->msg_hash_id = message_create_hash_id(np->data, np->size);
+
+	contact_add_message(c, mm);
+
+	packetset_loop_start_if_needed();
+
+	stringstream result;
+	result << "{\n";
+	result << "\t\"identity_id\": " << identity_id << ",\n";
+	result << "\t\"contact_id\": " << contact_id << "\n";
+	result << "}\n";
+	return result.str();
+}
+
 string message_interface(enum socket_interface_request_type sirt, vector<string>* request_path, vector<string>* request_params, char *post_content, unsigned int post_content_length, char** status_code) {
 	string content = "{ }";
 	const char* request_action = nullptr;
@@ -513,6 +611,12 @@ string message_interface(enum socket_interface_request_type sirt, vector<string>
 				string hash_id = http_request_get_param(request_params, "hash_id");
 				string sdir = http_request_get_param(request_params, "sdir");
 				content = message_delete(identity_id, contact_id, hash_id, sdir);
+				*status_code = (char*)HTTP_RESPONSE_200;
+			} else if (strstr(request_action, "request_lossy_pipe") == request_action) {
+				int identity_id = stoi(http_request_get_param(request_params, "identity_id"));
+				int contact_id = stoi(http_request_get_param(request_params, "contact_id"));
+				string descriptor(post_content);
+				content = message_request_lossy_pipe(identity_id, contact_id, descriptor, 1500);
 				*status_code = (char*)HTTP_RESPONSE_200;
 			} else {
 				*status_code = (char*)HTTP_RESPONSE_404;

@@ -13,6 +13,7 @@
 #include "message.h"
 #include "clusterfq.h"
 #include "socket_interface.h"
+#include "lossy_pipe.h"
 
 #include <string>
 #include <vector>
@@ -37,6 +38,7 @@ int main(int argc, char **argv) {
     address_factory_init();
     contact_static_init();
     packetset_static_init();
+    lossy_pipe_static_init();
 
     /* START SERVER */
     server_init();

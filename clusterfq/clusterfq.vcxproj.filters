@@ -66,6 +66,12 @@
     <ClCompile Include="socket_interface.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="shared_memory_buffer.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="lossy_pipe.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="address_factory.h">
@@ -117,6 +123,12 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="socket_interface.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="shared_memory_buffer.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="lossy_pipe.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

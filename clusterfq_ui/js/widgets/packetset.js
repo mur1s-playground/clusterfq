@@ -33,6 +33,8 @@ var Packetset = function(db, change_dependencies) {
 		"MT_FILE",
 		"MT_RECEIPT",
 		"MT_RECEIPT_COMPLETE",
+		"MT_REQUEST_LOSSY_PIPE",
+		"MT_LOSSY_PIPE",
 		"MT_UNKNOWN"
 	];
 	
@@ -43,6 +45,10 @@ var Packetset = function(db, change_dependencies) {
 				this.change_dependencies[i].changed_f();
 			}
 		}
+	}
+	
+	this.on_grant_permission_response = function() {
+		console.log(this.responseText);
 	}
 	
 	this.on_poll_response = function() {
@@ -98,6 +104,8 @@ var Packetset = function(db, change_dependencies) {
 				mt_text = "&#129534;";
 			} else if (mt_arr[1] == "UNKNOWN") {
 				mt_text = "&#92228;";
+			} else if (mt_arr[1] == "REQUEST") {
+				
 			}
 			if (mt_arr.length == 3) {
 				if (mt_arr[2] == "CONTACT") {
@@ -111,6 +119,17 @@ var Packetset = function(db, change_dependencies) {
 				} else if (mt_arr[2] == "COMPLETE") {
 					mt_text += "\u2713";
 				}
+			}
+
+			//TMP
+			if (state_arr[1] == "IN" && m_type == "MT_REQUEST_LOSSY_PIPE") {
+				r = confirm(m_type + "\n" + element["info"]);
+				if (r == true) {
+					packetset.db.query_post("contact/grant_permission?identity_id=" + element["identity_id"] + "&contact_id=" + element["contact_id"] + "&mt=" + element["message_type"], element["info"], packetset.on_grant_permission_response);
+				}
+			}
+			if (state_arr[1] == "IN" && m_type == "MT_LOSSY_PIPE") {
+				alert(m_type + "\n" + element["info"]);
 			}
 
 			/* IDENTITY & CONTACT STATUS BOX */

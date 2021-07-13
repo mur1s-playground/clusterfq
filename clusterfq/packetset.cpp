@@ -64,6 +64,10 @@ string packetset_static_get_state_infos() {
 		result << "\t\t\"identity_id\": " << packetset_state_info_[psi].identity_id << ",\n";
 		result << "\t\t\"contact_id\": " << packetset_state_info_[psi].contact_id << ",\n";
 		result << "\t\t\"packetset_state_info\": " << packetset_state_info_[psi].ps << ",\n";
+		if (packetset_state_info_[psi].info != nullptr) {
+			result << "\t\t\"info\": \"" << packetset_state_info_[psi].info << "\",\n";
+			free(packetset_state_info_[psi].info);
+		}
 		result << "\t\t\"message_type\": " << packetset_state_info_[psi].mt << "\n";
 		result << "\t\t}";
 		if (psi + 1 < packetset_state_info_.size()) {
@@ -156,7 +160,7 @@ void packetset_loop(void* unused) {
 				struct identity* i = identity_get(mm->identity_id);
 
 				//prepend new session, if the session was dropped, while a message was in queue
-				if (mm->mt == MT_MESSAGE && c->session_key.private_key_len == 0) {
+				if (c->session_key.private_key_len == 0 && (mm->mt == MT_MESSAGE || mm->mt == MT_FILE || mm->mt == MT_REQUEST_LOSSY_PIPE || mm->mt == MT_LOSSY_PIPE)) {
 					message_send_session_key(i, c, true);
 					break;
 				}
@@ -180,6 +184,7 @@ void packetset_loop(void* unused) {
 							psi.contact_id = c->id;
 							psi.ps = PS_OUT_PENDING;
 							psi.mt = ps->mm->mt;
+							psi.info = nullptr;
 
 							packetset_static_add_state_info(psi);
 
@@ -199,6 +204,7 @@ void packetset_loop(void* unused) {
 							psi.contact_id = c->id;
 							psi.ps = PS_OUT_COMPLETE;
 							psi.mt = ps->mm->mt;
+							psi.info = nullptr;
 
 							packetset_static_add_state_info(psi);
 						}
@@ -328,7 +334,7 @@ unsigned int packetset_create(struct message_meta* mm) {
 
 	if (ps.mm->mt == MT_ESTABLISH_CONTACT || ps.mm->mt == MT_ESTABLISH_SESSION || ps.mm->mt == MT_DROP_SESSION) {
 		chunk_size = 128;
-	} else if (ps.mm->mt == MT_MESSAGE || ps.mm->mt == MT_MIGRATE_ADDRESS || ps.mm->mt == MT_MIGRATE_PUBKEY || ps.mm->mt == MT_FILE) {
+	} else if (ps.mm->mt == MT_MESSAGE || ps.mm->mt == MT_MIGRATE_ADDRESS || ps.mm->mt == MT_MIGRATE_PUBKEY || ps.mm->mt == MT_FILE || ps.mm->mt == MT_REQUEST_LOSSY_PIPE || ps.mm->mt == MT_LOSSY_PIPE) {
 		chunk_size = 1024;
 	}
 
@@ -493,7 +499,7 @@ unsigned int packetset_prepare_send(struct packetset* ps) {
 
 		if (ps->mm->mt == MT_ESTABLISH_CONTACT || ps->mm->mt == MT_ESTABLISH_SESSION || ps->mm->mt == MT_DROP_SESSION) {
 			ps->chunks[c] = (unsigned char*)crypto_key_public_encrypt(&con->pub_key, np.data, np.position, &ps->chunks_length[c]);
-		} else if (ps->mm->mt == MT_MESSAGE || ps->mm->mt == MT_MIGRATE_ADDRESS || ps->mm->mt == MT_MIGRATE_PUBKEY || ps->mm->mt == MT_FILE) {
+		} else if (ps->mm->mt == MT_MESSAGE || ps->mm->mt == MT_MIGRATE_ADDRESS || ps->mm->mt == MT_MIGRATE_PUBKEY || ps->mm->mt == MT_FILE || ps->mm->mt == MT_REQUEST_LOSSY_PIPE || ps->mm->mt == MT_LOSSY_PIPE) {
 			if (con->session_key.private_key_len > 0 && con->session_key.public_key_len == 0) {
 				ps->chunks[c] = (unsigned char*)crypto_key_sym_encrypt(&con->session_key, (unsigned char*)np.data, np.position, (int*)&ps->chunks_length[c]);
 			} else {

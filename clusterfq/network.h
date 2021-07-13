@@ -133,6 +133,9 @@ extern void network_tcp_socket_server_accept(struct Network* network, struct Net
 
 extern void network_tcp_socket_client_connect(struct Network* network);
 
+/* UDP UNICAST */
+void network_udp_unicast_socket_server_create(struct Network* network, string address, int network_port);
+
 /* UDP Multicast */
 
 extern void network_udp_multicast_socket_server_create(struct Network* network, int network_port);

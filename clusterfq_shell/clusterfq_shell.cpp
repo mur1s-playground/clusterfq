@@ -2,6 +2,8 @@
 //
 
 #include <iostream>
+#include <sstream>
+#include <map>
 
 #include "../clusterfq/thread.h"
 #include "../clusterfq/util.h"
@@ -17,6 +19,12 @@
 #endif
 
 struct ThreadPool main_thread_pool;
+
+map<int, void*> lossy_pipes_by_id = map<int, void*>();
+map<int, int> lossy_pipes_active_slot_by_id = map<int, int>();
+int lossy_pipes_ct = 0;
+
+using namespace std;
 
 int main() {
     thread_pool_init(&main_thread_pool, 5);
@@ -89,6 +97,51 @@ int main() {
                 ClusterFQ::ClusterFQ::paramset_param_add(ps_id, ClusterFQ::CONTACT_GET_ACTION_CHAT_PARAM_TIME_START, stoll(args[3]));
                 ClusterFQ::ClusterFQ::paramset_param_add(ps_id, ClusterFQ::CONTACT_GET_ACTION_CHAT_PARAM_TIME_END, stoll(args[4]));
                 response = ClusterFQ::ClusterFQ::query(module, module_action, ps_id);
+            } else if (strstr(args[0].c_str(), "lossy_pipe_connect") != nullptr) {
+                void* lp = ClusterFQ::ClusterFQ::shared_memory_buffer_connect_i(args[1], stoi(args[2]), stoi(args[3]), (unsigned int)stoi(args[4]));
+                lossy_pipes_by_id.insert(pair<int, void*>(lossy_pipes_ct, lp));
+                lossy_pipes_active_slot_by_id.insert(pair<int, int>(lossy_pipes_ct, 0));
+                stringstream r_ss;
+                r_ss << "lossy_pipe_id: " << lossy_pipes_ct << std::endl;
+                response = r_ss.str();
+                lossy_pipes_ct++;
+            } else if (strstr(args[0].c_str(), "lossy_pipe_send") != nullptr) {
+                void* smb = lossy_pipes_by_id.find(stoi(args[1]))->second;
+                
+                int pkt_len = sizeof(int) + args[2].length();
+                unsigned char* data = (unsigned char *)malloc(pkt_len);
+                int* set_len = (int*)data;
+                *set_len = sizeof(int) + args[2].length();
+                memcpy(&data[sizeof(int)], args[2].data(), args[2].length());
+
+                map<int, int>::iterator lpasbi = lossy_pipes_active_slot_by_id.find(stoi(args[1]));                             //TMP
+                lpasbi->second = (ClusterFQ::ClusterFQ::shared_memory_buffer_write_slot_i(smb, lpasbi->second, data, pkt_len) + 1) % 50;
+
+                free(data);
+
+            } else if (strstr(args[0].c_str(), "lossy_pipe_read") != nullptr) {
+                void* smb = lossy_pipes_by_id.find(stoi(args[1]))->second;
+
+                                                      //TMP
+                unsigned char* data = (unsigned char*)malloc(1500);
+
+                map<int, int>::iterator lpasbi = lossy_pipes_active_slot_by_id.find(stoi(args[1]));
+                if (ClusterFQ::ClusterFQ::shared_memory_buffer_read_slot_i(smb, lpasbi->second, data)) {
+                                                           //TMP
+                    lpasbi->second = (lpasbi->second +1) % 50;
+
+                    int* len_int = (int*)data;
+                    stringstream pkt;
+                    for (int l = 0; l < *len_int - sizeof(int); l++) {
+                        pkt << data[sizeof(int) + l];
+                    }
+                    pkt << std::endl;
+
+                    response = pkt.str();
+                } else {
+                    response = "no packet waiting\n";
+                }
+                free(data);
             }
             std::cout << response;
         }
