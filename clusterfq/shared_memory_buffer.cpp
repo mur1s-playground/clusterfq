@@ -1,6 +1,20 @@
 #include "shared_memory_buffer.h"
 
+#ifdef _WIN32
+
+#else
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sstream>
+#include <vector>
+#include <cstring>
+
+#include "util.h"
+#endif
+
 #include <iostream>
+
 
 bool shared_memory_buffer_init(struct shared_memory_buffer* smb, string name, int size, int slots, unsigned int drop_skip) {
 	smb->name = name;
@@ -19,7 +33,22 @@ bool shared_memory_buffer_init(struct shared_memory_buffer* smb, string name, in
 	smb->h_buffer = (LPTSTR)MapViewOfFile(smb->h_file, FILE_MAP_ALL_ACCESS, 0, 0, size_complete);
 	smb->buffer = (unsigned char*)smb->h_buffer;
 #else
+	smb->shm_id = shmget(IPC_PRIVATE, size_complete, IPC_CREAT | IPC_EXCL | SHM_R | SHM_W);
+	if (smb->shm_id == -1) {
+		return false;
+	}
+	stringstream name_ss;
+	name_ss << name << ":" << smb->shm_id;
+	std::cout << "new name " << name_ss.str() << std::endl;
 
+	smb->name = name_ss.str();
+	std::cout << "new name set" << std::endl;
+	smb->h_buffer = shmat(smb->shm_id, NULL, 0);
+	if (smb->h_buffer == (void*)-1) {
+		std::cout << "smhat failed: " << errno <<std::endl;
+		return false;
+	}
+	smb->buffer = (unsigned char*)smb->h_buffer;
 #endif
 	memset(smb->buffer, 0, size_complete);
 	return true;
@@ -43,7 +72,18 @@ struct shared_memory_buffer* shared_memory_buffer_connect(string name, int size,
 	smb->h_buffer = (LPTSTR)MapViewOfFile(smb->h_file, FILE_MAP_ALL_ACCESS, 0, 0, size_complete);
 	smb->buffer = (unsigned char*)smb->h_buffer;
 #else
-
+	std::cout << "splitting name: " << name << std::endl;
+	vector<string> splt = util_split(name, ":");
+	std::cout << "shm_id: " << splt[splt.size() - 1] << std::endl;
+	smb->shm_id = stoi(splt[splt.size() - 1]);
+	smb->h_buffer = shmat(smb->shm_id, NULL, 0);
+	if (smb->h_buffer == (void*)-1) {
+		delete smb;
+		std::cout << "shm_at failed " << errno << std::endl;
+		return nullptr;
+	} else {
+		smb->buffer = (unsigned char*)smb->h_buffer;
+	}
 #endif
 	return smb;
 }

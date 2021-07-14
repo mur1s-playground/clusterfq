@@ -1,5 +1,5 @@
-all: clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o socket_interface.o thread.o util.o
-	g++ -std=c++11 clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o message.o mutex.o network.o packetset.o server.o socket_interface.o thread.o util.o -lssl -lcrypto -lpthread -o clusterfq
+all: clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o lossy_pipe.o message.o mutex.o network.o packetset.o server.o shared_memory_buffer.o socket_interface.o thread.o util.o
+	g++ -std=c++11 clusterfq.o address_factory.o client.o contact.o contact_stats.o crypto.o ecdh.o group.o identity.o lossy_pipe.o message.o mutex.o network.o packetset.o server.o shared_memory_buffer.o socket_interface.o thread.o util.o -lssl -lcrypto -lpthread -o clusterfq
 
 clusterfq.o:
 	g++ -std=c++11 -c clusterfq.cpp
@@ -28,6 +28,9 @@ group.o:
 identity.o:
 	g++ -std=c++11 -c identity.cpp
 		
+lossy_pipe.o:
+	g++ -std=c++11 -c lossy_pipe.cpp
+		
 message.o:
 	g++ -std=c++11 -c message.cpp
 	
@@ -42,6 +45,9 @@ packetset.o:
 
 server.o:
 	g++ -std=c++11 -c server.cpp
+	
+shared_memory_buffer.o:
+	g++ -std=c++11 -c shared_memory_buffer.cpp
 	
 socket_interface.o:
 	g++ -std=c++11 -c socket_interface.cpp

@@ -5,6 +5,11 @@
 #include <sstream>
 #include <iostream>
 
+#ifdef _WIN32
+#else
+#include <cstring>
+#endif
+
 
 struct ThreadPool lossy_pipes_thread_pool;
 vector<struct lossy_pipe*>	lossy_pipes = vector<struct lossy_pipe*>();
@@ -14,6 +19,8 @@ void lossy_pipe_static_init() {
 }
 
 bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned char** out_address, int* out_port, struct Key *k) {
+    std::cout << "lossy_pipe_init" << std::endl;
+
     lp->descriptor = descriptor;
     lp->mtu = mtu;
 
@@ -22,6 +29,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
     int na_i = -1;
 
     for (int n = 0; n < na.size(); n++) {
+        if (na[n].state == NAS_DEPRECATED) continue;
         if (na[n].scope == NASC_GLOBAL_UNICAST) {
             na_i = n;
             break;
@@ -32,6 +40,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
         if (na_i == -1 && na[n].scope == NASC_LINK_LOCAL_UNICAST) {
             na_i = n;
         }
+        network_address_dump(&na[n]);
     }
 
     int port_base = 1338;
@@ -39,7 +48,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
 
     while (port_offset < 60) {
         network_init(&lp->n);
-        network_udp_unicast_socket_server_create(&lp->n, na[na_i].address, port_base + port_offset);
+        network_udp_unicast_socket_server_create(&lp->n, "::", port_base + port_offset);
         if (lp->n.state == NS_ERROR) {
             network_destroy(&lp->n);
             port_offset++;
@@ -58,10 +67,17 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
 
     *out_port = port_base + port_offset;
 
+    std::cout << "lp server created: " << na[na_i].address << " : " << (port_base + port_offset) << std::endl;
+
     stringstream smb_name;
     smb_name << descriptor << "_" << (port_base+port_offset);
 
+    std::cout << "smb initing" << std::endl;
+
     if (shared_memory_buffer_init(&lp->smb, smb_name.str(), mtu, 50, 5)) {
+
+        std::cout << "smb inited" << std::endl;
+
         struct lossy_pipe_loop_params *lplp = new lossy_pipe_loop_params();
         lplp->lp = lp;
         lplp->thread_id = thread_create(&lossy_pipes_thread_pool, (void*)&lossy_pipe_loop, (void *)lplp);
@@ -69,8 +85,10 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
         lp->k = crypto_key_copy(k);
         return true;
     } else {
+        std::cout << "smb error" << std::endl;
         network_destroy(&lp->n);
         free(*out_address);
+        *out_address = nullptr;
     }
 
     return false;
@@ -82,6 +100,8 @@ bool lossy_pipe_client_init(struct lossy_pipe* lp, string descriptor, int mtu, u
     
     network_init(&lp->n);
     network_udp_multicast_socket_client_create(&lp->n, (char*)address, port);
+
+    std::cout << "lp client created: " << address << " : " << port << std::endl;
 
     lp->k = crypto_key_copy(k);
 
@@ -98,6 +118,8 @@ bool lossy_pipe_client_init(struct lossy_pipe* lp, string descriptor, int mtu, u
 }
 
 void lossy_pipe_loop(void* param) {
+    std::cout << "lp loop started" << std::endl;
+
     struct lossy_pipe_loop_params* lplp = (struct lossy_pipe_loop_params*)param;
     struct lossy_pipe* lp = lplp->lp;
     int current_slot = 0;
@@ -107,18 +129,25 @@ void lossy_pipe_loop(void* param) {
     while (lp->n.state != NS_ERROR) {
         unsigned int out_len = 0;
         lp->n.read(&lp->n, pkt_buffer, lp->mtu, nullptr, &out_len);
+        std::cout << "waiting for packet" << std::endl;
         if (out_len > 0) {
+            std::cout << "packet_len: " << out_len << std::endl;
             int dec_out_len = 0;
             pkt_buffer_dec = crypto_key_sym_decrypt(lp->k, pkt_buffer, out_len, &dec_out_len);
             if (dec_out_len > 0) {
-                shared_memory_buffer_write_slot(&lp->smb, current_slot, pkt_buffer_dec, dec_out_len);
-                current_slot = (current_slot + 1) % lp->smb.slots;
+                std::cout << "dec_packet_len: " << dec_out_len << std::endl;
+                if (dec_out_len < lp->mtu) {
+                    shared_memory_buffer_write_slot(&lp->smb, current_slot, pkt_buffer_dec, dec_out_len);
+                    current_slot = (current_slot + 1) % lp->smb.slots;
+                }
+                free(pkt_buffer_dec);
             }
         }
     }
     free(pkt_buffer);
     thread_terminated(&lossy_pipes_thread_pool, lplp->thread_id);
     free(lplp);
+    std::cout << "lp loop end" << std::endl;
 }
 
 void lossy_pipe_send_loop(void *param) {
@@ -135,6 +164,7 @@ void lossy_pipe_send_loop(void *param) {
             int enc_len = 0;
             int *pkt_len = (int *)&lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA];
             unsigned char* pkt_buffer_enc = crypto_key_sym_encrypt(lp->k, &lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA], *pkt_len, &enc_len);
+            std::cout << "sending enc packet: " << enc_len << std::endl;
             lp->n.send(&lp->n, pkt_buffer_enc, enc_len);
             free(pkt_buffer_enc);
             current_slot = (current_slot + 1) % lp->smb.slots;

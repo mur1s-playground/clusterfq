@@ -451,7 +451,7 @@ enum NetworkAddressScope network_address_get_nonlocal_scope(string address) {
 	if (network_address_in_range(address, from_multicast, to_multicast)) {
 		return NASC_MULTICAST;
 	}
-	return NASC_LOOPBACK;
+	return NASC_GLOBAL_UNICAST;
 }
 
 vector<struct NetworkAddress> network_address_get() {

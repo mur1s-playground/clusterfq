@@ -21,7 +21,8 @@ struct shared_memory_buffer {
 	HANDLE h_file;
 	LPCTSTR h_buffer;
 #else
-
+	int shm_id;
+	void* h_buffer;
 #endif
 
 	unsigned char* buffer;
