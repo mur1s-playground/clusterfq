@@ -179,6 +179,7 @@ void message_check_session_key(struct identity *i, struct contact *c) {
 			free(c->session_key_inc.private_key);
 			c->session_key_inc.private_key = nullptr;
 		}
+		crypto_key_reset_internal(&c->session_key_inc, false);
 		mutex_release(&c->session_key_inc_lock);
 
 		c->session_key.private_key_len = 0;
@@ -186,6 +187,7 @@ void message_check_session_key(struct identity *i, struct contact *c) {
 			free(c->session_key.private_key);
 			c->session_key.private_key = nullptr;
 		}
+		crypto_key_reset_internal(&c->session_key, false);
 
 		//DROP SESSION
 		struct message_meta* mm = new struct message_meta();

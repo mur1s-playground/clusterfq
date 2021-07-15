@@ -84,6 +84,8 @@ struct Key* crypto_key_copy(struct Key* key) {
 	memcpy((void*)ret->public_key, (void*)key->public_key, key->public_key_len);
 	/*	strncpy(ret->public_key, key->public_key, key->public_key_len);*/
 	ret->public_key_len = key->public_key_len;
+	ret->mp_0 = nullptr;
+	ret->mp_1 = nullptr;
 	return ret;
 }
 
@@ -92,7 +94,7 @@ void crypto_key_copy(struct Key* key_in, struct Key* key_out) {
 		free(key_out->name);
 		key_out->name = nullptr;
 	}
-	if (key_in->name_len > 0) {	
+	if (key_in->name_len > 0) {
 		key_out->name = (char*)malloc(key_in->name_len + 1);
 		memcpy((void*)key_in->name, (void*)key_in->name, key_in->name_len);
 		key_out->name[key_in->name_len] = '\0';
@@ -131,7 +133,7 @@ void crypto_key_private_generate(struct Key* key, int bits) {
 	EVP_PKEY* pkey;
 	pkey = EVP_PKEY_new();
 	RSA* rsa = RSA_new();
-	BIGNUM *e;
+	BIGNUM* e;
 	e = BN_new();
 	BN_set_word(e, RSA_F4);
 	RSA_generate_key_ex(rsa, bits, e, NULL);
@@ -167,10 +169,18 @@ void crypto_key_public_extract(struct Key* key) {
 	BIO_free(bp);
 }
 
-void crypto_key_reset_internal(struct Key* key) {
+void crypto_key_reset_internal(struct Key* key, bool asym) {
 	if (key->mp_0 != nullptr) {
-		RSA_free((RSA*)key->mp_0);
+		if (asym) {
+			RSA_free((RSA*)key->mp_0);
+		}
+		else {
+			free(key->mp_0);
+		}
 		key->mp_0 = nullptr;
+	}
+	if (key->mp_1 != nullptr) {
+		free(key->mp_1);
 	}
 }
 
@@ -178,14 +188,14 @@ void crypto_key_sym_generate(struct Key* key) {
 	key->private_key = crypto_random(ECC_PRV_KEY_SIZE);
 	key->private_key_len = ECC_PRV_KEY_SIZE;
 	key->public_key = (char*)malloc(ECC_PUB_KEY_SIZE);
-	ecdh_generate_keys((uint8_t *)key->public_key, (uint8_t *)key->private_key);
+	ecdh_generate_keys((uint8_t*)key->public_key, (uint8_t*)key->private_key);
 	key->public_key_len = ECC_PUB_KEY_SIZE;
 }
 
 void crypto_key_sym_finalise(struct Key* key) {
 	char* sym_key, * old_pt;
 	sym_key = (char*)malloc(ECC_PUB_KEY_SIZE);
-	ecdh_shared_secret((uint8_t*)key->private_key, (uint8_t*)key->public_key, (uint8_t *)sym_key);
+	ecdh_shared_secret((uint8_t*)key->private_key, (uint8_t*)key->public_key, (uint8_t*)sym_key);
 	key->public_key_len = 0;
 	free(key->public_key);
 	old_pt = key->private_key;
@@ -215,14 +225,15 @@ char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_l
 		BIO_free(keybio);
 		key->mp_0 = (void*)rsa;
 		EVP_PKEY_free(pkey);
-	} else {
+	}
+	else {
 		rsa = (RSA*)key->mp_0;
 	}
 
-	unsigned char* m = crypto_hash_sha256((unsigned char *)to_sign, to_sign_len);
+	unsigned char* m = crypto_hash_sha256((unsigned char*)to_sign, to_sign_len);
 	unsigned int m_len = SHA256_DIGEST_LENGTH;
 
-	unsigned char* sigret = (unsigned char*) malloc(RSA_size(rsa));
+	unsigned char* sigret = (unsigned char*)malloc(RSA_size(rsa));
 	unsigned int sigret_len = 0;
 	int ret = RSA_sign(NID_sha256, m, m_len, sigret, &sigret_len, rsa);
 	free(m);
@@ -238,11 +249,12 @@ char* crypto_sign_message(struct Key* key, char* to_sign, unsigned int to_sign_l
 			*sig_len = strlen(base64_text);
 		}
 		return base64_text;
-	} else {
+	}
+	else {
 		if (sig_len != nullptr) {
 			*sig_len = sigret_len;
 		}
-		return (char *)sigret;
+		return (char*)sigret;
 	}
 }
 
@@ -265,7 +277,8 @@ bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_v
 		BIO_free(keybio);
 		EVP_PKEY_free(pkey);
 		key->mp_0 = (void*)rsa;
-	} else {
+	}
+	else {
 		rsa = (RSA*)key->mp_0;
 	}
 
@@ -279,8 +292,9 @@ bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_v
 
 		ret = RSA_verify(NID_sha256, m, m_len, signature_b64, signature_len_b64, rsa);
 		free(signature_b64);
-	} else {
-		ret = RSA_verify(NID_sha256, m, m_len, (unsigned char *)signature, signature_len, rsa);
+	}
+	else {
+		ret = RSA_verify(NID_sha256, m, m_len, (unsigned char*)signature, signature_len, rsa);
 	}
 	free(m);
 
@@ -319,11 +333,12 @@ char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encryp
 		if (verification_key) EVP_PKEY_free(verification_key);
 		key->mp_0 = (void*)rsa;
 		EVP_PKEY_free(pkey);
-	} else {
+	}
+	else {
 		rsa = (RSA*)key->mp_0;
 	}
 	int size = RSA_size(rsa);
-	
+
 	int part = size - 50;
 
 	int parts = ceilf(to_encrypt_size / (float)(part));
@@ -345,9 +360,9 @@ char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encryp
 		}
 		cur_pos += len;
 	}
-	
+
 	encrypted[parts * size] = '\0';
-	return (char *)encrypted;
+	return (char*)encrypted;
 }
 
 char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decrypt_size, int* out_len) {
@@ -378,7 +393,8 @@ char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decry
 		if (verification_key) EVP_PKEY_free(verification_key);
 		key->mp_0 = (void*)rsa;
 		EVP_PKEY_free(pkey);
-	} else {
+	}
+	else {
 		rsa = (RSA*)key->mp_0;
 	}
 
@@ -406,89 +422,131 @@ char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decry
 	return (char*)decrypted;
 }
 
-unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt, int to_encrypt_len, int* len) {
-	int split = (2.0 / 3.0) * key->private_key_len;
-	unsigned char* hashed_key = crypto_hash_sha256((unsigned char *)key->private_key, split);
-	unsigned char* hashed_iv = crypto_hash_md5((unsigned char*)&(key->private_key[split - 1]), key->private_key_len - split);
-	unsigned char* encrypted = (unsigned char*)malloc(to_encrypt_len + 128 - (to_encrypt_len % 128));
+unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt, int to_encrypt_len, int* len, unsigned char* allocated_buffer) {
+	if (key->mp_0 == nullptr) {
+		int split = (2.0 / 3.0) * key->private_key_len;
+		unsigned char* hashed_key = crypto_hash_sha256((unsigned char*)key->private_key, split);
+		key->mp_0 = hashed_key;
+		unsigned char* hashed_iv = crypto_hash_md5((unsigned char*)&(key->private_key[split - 1]), key->private_key_len - split);
+		key->mp_1 = hashed_iv;
+	}
+	unsigned char* encrypted = allocated_buffer;
+	if (allocated_buffer == nullptr) {
+		encrypted = (unsigned char*)malloc(to_encrypt_len + 128 - (to_encrypt_len % 128));
+	}
 	int encrypted_len;
 	EVP_CIPHER_CTX* ctx;
 	if (!(ctx = EVP_CIPHER_CTX_new())) {
 		printf("error creating cipher context\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(encrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(encrypted);
+		}
 		return NULL;
 	}
-	if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, hashed_key, hashed_iv)) {
+	if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)key->mp_0, (unsigned char*)key->mp_1)) {
 		printf("error init enc\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(encrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(encrypted);
+		}
 		return NULL;
 	}
 	if (1 != EVP_EncryptUpdate(ctx, encrypted, &encrypted_len, to_encrypt, to_encrypt_len)) {
 		printf("error encrypting data\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(encrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(encrypted);
+		}
 		return NULL;
 	}
 	*len = encrypted_len;
 	if (1 != EVP_EncryptFinal_ex(ctx, encrypted + encrypted_len, &encrypted_len)) {
 		printf("error finalizing\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(encrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(encrypted);
+		}
 		return NULL;
 	}
 	*len = *len + encrypted_len;
 	EVP_CIPHER_CTX_free(ctx);
-	free(hashed_key);
-	free(hashed_iv);
 	return encrypted;
 }
 
-unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len) {
-	int split = (2.0 / 3.0) * key->private_key_len;
-	unsigned char* hashed_key = crypto_hash_sha256((unsigned char*)key->private_key, split);
-	unsigned char* hashed_iv = crypto_hash_md5((unsigned char*)&(key->private_key[split - 1]), key->private_key_len - split);
+unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len, unsigned char* allocated_buffer) {
+	if (key->mp_0 == nullptr) {
+		int split = (2.0 / 3.0) * key->private_key_len;
+		unsigned char* hashed_key = crypto_hash_sha256((unsigned char*)key->private_key, split);
+		key->mp_0 = hashed_key;
+		unsigned char* hashed_iv = crypto_hash_md5((unsigned char*)&(key->private_key[split - 1]), key->private_key_len - split);
+		key->mp_1 = hashed_iv;
+	}
 	EVP_CIPHER_CTX* ctx;
-	unsigned char* decrypted = (unsigned char*)malloc(to_decrypt_len);
+	unsigned char* decrypted = allocated_buffer;
+	if (allocated_buffer == nullptr) {
+		decrypted = (unsigned char*)malloc(to_decrypt_len);
+	}
 	int decrypted_len;
 	if (!(ctx = EVP_CIPHER_CTX_new())) {
 		printf("error creating cipher context\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(decrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(decrypted);
+		}
 		return nullptr;
 	}
-	if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, hashed_key, hashed_iv)) {
+	if (1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)key->mp_0, (unsigned char*)key->mp_1)) {
 		printf("error init dec\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(decrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(decrypted);
+		}
 		return nullptr;
 	}
 	if (1 != EVP_DecryptUpdate(ctx, decrypted, &decrypted_len, to_decrypt, to_decrypt_len)) {
 		printf("error decrypting\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(decrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(decrypted);
+		}
 		return nullptr;
 	}
 	*len = decrypted_len;
 	if (1 != EVP_DecryptFinal_ex(ctx, decrypted + decrypted_len, &decrypted_len)) {
 		printf("error finalizing dec\n");
-		free(hashed_key);
-		free(hashed_iv);
-		free(decrypted);
+		free(key->mp_0);
+		free(key->mp_1);
+		key->mp_0 = nullptr;
+		key->mp_1 = nullptr;
+		if (allocated_buffer == nullptr) {
+			free(decrypted);
+		}
 		return nullptr;
 	}
 	*len = *len + decrypted_len;
 	decrypted[(*len)] = '\0';
-	free(hashed_key);
-	free(hashed_iv);
 	EVP_CIPHER_CTX_free(ctx);
 	return decrypted;
 }
@@ -520,7 +578,7 @@ char* crypto_base64_encode(unsigned char* to_encode, size_t length, bool slash_t
 		}
 	}
 	free(bufferPtr);
-	
+
 	return encoded;
 }
 
@@ -545,14 +603,15 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 	memset(buffer, 0, decode_len);
 	buffer[decode_len] = '\0';
 
-	char* t_d = (char *)to_decode;
+	char* t_d = (char*)to_decode;
 	if (underscore_to_slash) {
 		t_d = (char*)malloc(strlen(to_decode) + 1);
 		t_d[strlen(to_decode)] = '\0';
 		for (int h = 0; h < strlen(to_decode); h++) {
 			if (to_decode[h] == '_') {
 				t_d[h] = '/';
-			} else {
+			}
+			else {
 				t_d[h] = to_decode[h];
 			}
 		}
@@ -571,15 +630,16 @@ unsigned char* crypto_base64_decode(const char* to_decode, size_t* out_length, b
 
 /* UTILS */
 
-char *crypto_key_fingerprint(struct Key* pubkey) {
+char* crypto_key_fingerprint(struct Key* pubkey) {
 	char* buffer = (char*)malloc(256);
 	if (pubkey->public_key_len == 0) {
 		buffer[0] = '\0';
-	} else {
-		unsigned char* hash = crypto_hash_sha256((unsigned char *)pubkey->public_key, pubkey->public_key_len);
+	}
+	else {
+		unsigned char* hash = crypto_hash_sha256((unsigned char*)pubkey->public_key, pubkey->public_key_len);
 		int position = 0;
 		for (int i = 0; i < SHA256_DIGEST_LENGTH / 2; i++) {
-			snprintf(&buffer[position], 200,"%02x", hash[i * 2]);
+			snprintf(&buffer[position], 200, "%02x", hash[i * 2]);
 			//fprintf(stdout, "%02x:", hash[i * 2]);
 			position += 2;
 			if (i + 1 < SHA256_DIGEST_LENGTH / 2) {
@@ -699,7 +759,7 @@ char* crypto_pad_add(char* message, int message_len, int total_len) {
 			result[i] = (crypto_random(1))[0];
 		}
 	}
-	hash = (char *)crypto_hash_sha256((unsigned char*)result, total_len - SHA256_DIGEST_LENGTH);
+	hash = (char*)crypto_hash_sha256((unsigned char*)result, total_len - SHA256_DIGEST_LENGTH);
 	j = 0;
 	for (int i = total_len - 1; i > total_len - SHA256_DIGEST_LENGTH; i--) {
 		result[i] = hash[SHA256_DIGEST_LENGTH - 1 - j];
@@ -712,7 +772,7 @@ char* crypto_pad_remove(char* message, int total_len, int* message_len_out) {
 	char* result;
 	char* hash;
 	int j;
-	hash = (char *)crypto_hash_sha256((unsigned char*)message, total_len - SHA256_DIGEST_LENGTH);
+	hash = (char*)crypto_hash_sha256((unsigned char*)message, total_len - SHA256_DIGEST_LENGTH);
 	j = 0;
 	for (int i = total_len - 1; i > total_len - SHA256_DIGEST_LENGTH; i--) {
 		if (message[i] != hash[SHA256_DIGEST_LENGTH - 1 - j]) {

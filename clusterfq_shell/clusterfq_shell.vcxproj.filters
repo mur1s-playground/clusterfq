@@ -33,6 +33,15 @@
     <ClCompile Include="..\clusterfq_cl\const_defs.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="audio_source.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="smb_interface.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+    <ClCompile Include="audio_dst.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shell.h">
@@ -48,6 +57,18 @@
       <Filter>Headerdateien</Filter>
     </ClInclude>
     <ClInclude Include="..\clusterfq_cl\const_defs.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="audio_source.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="smb_interface.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="audio_dst.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+    <ClInclude Include="audio_device.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
   </ItemGroup>

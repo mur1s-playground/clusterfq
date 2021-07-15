@@ -13,6 +13,10 @@
 #include "../clusterfq_cl/clusterfq_cl.h"
 #include "../clusterfq_cl/const_defs.h"
 
+#include "audio_source.h"
+#include "audio_dst.h"
+#include "smb_interface.h"
+
 #ifdef _WIN32
 #else
 #include <cstring>
@@ -20,7 +24,6 @@
 
 struct ThreadPool main_thread_pool;
 
-map<int, void*> lossy_pipes_by_id = map<int, void*>();
 map<int, int> lossy_pipes_active_slot_by_id = map<int, int>();
 int lossy_pipes_ct = 0;
 
@@ -142,6 +145,16 @@ int main() {
                     response = "no packet waiting\n";
                 }
                 free(data);
+            } else if (strstr(args[0].c_str(), "audio_sources_list") != nullptr) {
+                audio_source_list_devices();
+            } else if (strstr(args[0].c_str(), "audio_source_connect") != nullptr) {
+                struct audio_source* as = new struct audio_source();
+                audio_source_connect(as, stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
+            } else if (strstr(args[0].c_str(), "audio_dsts_list") != nullptr) {
+                audio_dsts_list_devices();
+            } else if (strstr(args[0].c_str(), "audio_dst_connect") != nullptr) {
+                struct audio_dst* as = new struct audio_dst();
+                audio_dst_connect(as, stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
             }
             std::cout << response;
         }

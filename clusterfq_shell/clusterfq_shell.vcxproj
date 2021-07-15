@@ -137,7 +137,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\Users\mur1_\source\repos\clusterfq\x64\Release;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);clusterfq_cl.lib;</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);clusterfq_cl.lib;winmm.lib;</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -145,15 +145,22 @@
     <ClCompile Include="..\clusterfq\thread.cpp" />
     <ClCompile Include="..\clusterfq\util.cpp" />
     <ClCompile Include="..\clusterfq_cl\const_defs.cpp" />
+    <ClCompile Include="audio_dst.cpp" />
+    <ClCompile Include="audio_source.cpp" />
     <ClCompile Include="clusterfq_shell.cpp" />
     <ClCompile Include="shell.cpp" />
+    <ClCompile Include="smb_interface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\clusterfq\mutex.h" />
     <ClInclude Include="..\clusterfq\thread.h" />
     <ClInclude Include="..\clusterfq\util.h" />
     <ClInclude Include="..\clusterfq_cl\const_defs.h" />
+    <ClInclude Include="audio_device.h" />
+    <ClInclude Include="audio_dst.h" />
+    <ClInclude Include="audio_source.h" />
     <ClInclude Include="shell.h" />
+    <ClInclude Include="smb_interface.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

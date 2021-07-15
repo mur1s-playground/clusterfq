@@ -34,7 +34,7 @@ extern void crypto_key_name_set(struct Key* key, const char* name, int name_len)
 extern void crypto_key_private_generate(struct Key* key, int bits);
 extern void crypto_key_public_extract(struct Key* key);
 
-extern void crypto_key_reset_internal(struct Key* key);
+extern void crypto_key_reset_internal(struct Key* key, bool asym = true);
 
 extern void crypto_key_sym_generate(struct Key* key);
 extern void crypto_key_sym_finalise(struct Key* key);
@@ -46,11 +46,11 @@ bool crypto_verify_signature(struct Key* key, char* to_verify, unsigned int to_v
 
 /* ENCRYPTION/DECRYPTION */
 
-extern char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encrypt_size, unsigned int *out_size = nullptr);
+extern char* crypto_key_public_encrypt(struct Key* key, char* to_encrypt, int to_encrypt_size, unsigned int* out_size = nullptr);
 extern char* crypto_key_private_decrypt(struct Key* key, char* to_decrypt, int to_decrypt_size, int* out_len = nullptr);
 
-extern unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt, int to_encrypt_len, int* len);
-extern unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len);
+extern unsigned char* crypto_key_sym_encrypt(struct Key* key, unsigned char* to_encrypt, int to_encrypt_len, int* len, unsigned char* allocated_buffer = nullptr);
+extern unsigned char* crypto_key_sym_decrypt(struct Key* key, unsigned char* to_decrypt, int to_decrypt_len, int* len, unsigned char* allocated_buffer = nullptr);
 
 /* ENCODE/DECODE */
 char* crypto_base64_encode(unsigned char* to_encode, size_t length, bool slash_to_underscore = false);

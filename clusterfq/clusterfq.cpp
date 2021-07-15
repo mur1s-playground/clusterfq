@@ -48,9 +48,10 @@ int main(int argc, char **argv) {
     /* INIT CLIENT */
     client_init();
     /* ----------- */
-
+    
     socket_interface_static_init(8080);
     socket_interface_listen_loop();
+    
 
     /* NETWORK ADDRESS TESTING */
     /*

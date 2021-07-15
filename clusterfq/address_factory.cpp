@@ -156,7 +156,7 @@ bool address_factory_check_multicast_address(string address) {
 					if (nc == 0) return false;
 					if (i + 1 < address.length() && address.at(i + 1) == ':') {
 						if (double_found) return false;
-						double_found == true;
+						double_found = true;
 						i++;
 					}
 					segments++;

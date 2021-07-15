@@ -18,7 +18,7 @@ void lossy_pipe_static_init() {
     thread_pool_init(&lossy_pipes_thread_pool, 20);
 }
 
-bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned char** out_address, int* out_port, struct Key *k) {
+bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned char** out_address, int* out_port, struct Key* k) {
     std::cout << "lossy_pipe_init" << std::endl;
 
     lp->descriptor = descriptor;
@@ -52,7 +52,8 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
         if (lp->n.state == NS_ERROR) {
             network_destroy(&lp->n);
             port_offset++;
-        } else { 
+        }
+        else {
             break;
         }
     }
@@ -60,7 +61,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
         return false;
     }
 
-    unsigned char *out_addr = (unsigned char*)malloc(na[na_i].address.length() + 1);
+    unsigned char* out_addr = (unsigned char*)malloc(na[na_i].address.length() + 1);
     *out_address = out_addr;
     memcpy(out_addr, na[na_i].address.data(), na[na_i].address.length());
     out_addr[na[na_i].address.length()] = '\0';
@@ -70,7 +71,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
     std::cout << "lp server created: " << na[na_i].address << " : " << (port_base + port_offset) << std::endl;
 
     stringstream smb_name;
-    smb_name << descriptor << "_" << (port_base+port_offset);
+    smb_name << descriptor << "_" << (port_base + port_offset);
 
     std::cout << "smb initing" << std::endl;
 
@@ -78,13 +79,14 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
 
         std::cout << "smb inited" << std::endl;
 
-        struct lossy_pipe_loop_params *lplp = new lossy_pipe_loop_params();
+        struct lossy_pipe_loop_params* lplp = new lossy_pipe_loop_params();
         lplp->lp = lp;
-        lplp->thread_id = thread_create(&lossy_pipes_thread_pool, (void*)&lossy_pipe_loop, (void *)lplp);
+        lplp->thread_id = thread_create(&lossy_pipes_thread_pool, (void*)&lossy_pipe_loop, (void*)lplp);
 
         lp->k = crypto_key_copy(k);
         return true;
-    } else {
+    }
+    else {
         std::cout << "smb error" << std::endl;
         network_destroy(&lp->n);
         free(*out_address);
@@ -97,7 +99,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
 bool lossy_pipe_client_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned char* address, int port, struct Key* k) {
     lp->descriptor = descriptor;
     lp->mtu = mtu;
-    
+
     network_init(&lp->n);
     network_udp_multicast_socket_client_create(&lp->n, (char*)address, port);
 
@@ -124,65 +126,77 @@ void lossy_pipe_loop(void* param) {
     struct lossy_pipe* lp = lplp->lp;
     int current_slot = 0;
     unsigned char* pkt_buffer = (unsigned char*)malloc(lp->mtu);
-    unsigned char* pkt_buffer_dec = nullptr;
+    unsigned char* pkt_buffer_dec = (unsigned char*)malloc(lp->mtu);
     pkt_buffer[lp->mtu - 1] = '\0';
+
+    time_t t1 = time(nullptr);
+    int pkt_ct = 0;
+
     while (lp->n.state != NS_ERROR) {
         unsigned int out_len = 0;
         lp->n.read(&lp->n, pkt_buffer, lp->mtu, nullptr, &out_len);
-        std::cout << "waiting for packet" << std::endl;
         if (out_len > 0) {
-            std::cout << "packet_len: " << out_len << std::endl;
             int dec_out_len = 0;
-            pkt_buffer_dec = crypto_key_sym_decrypt(lp->k, pkt_buffer, out_len, &dec_out_len);
+            pkt_buffer_dec = crypto_key_sym_decrypt(lp->k, pkt_buffer, out_len, &dec_out_len, pkt_buffer_dec);
             if (dec_out_len > 0) {
-                std::cout << "dec_packet_len: " << dec_out_len << std::endl;
                 if (dec_out_len < lp->mtu) {
                     shared_memory_buffer_write_slot(&lp->smb, current_slot, pkt_buffer_dec, dec_out_len);
                     current_slot = (current_slot + 1) % lp->smb.slots;
+                    pkt_ct++;
                 }
-                free(pkt_buffer_dec);
             }
+        }
+        time_t t2 = time(nullptr);
+        if (t1 != t2) {
+            t1 = t2;
+            std::cout << pkt_ct << "pkts/s" << std::endl;
+            pkt_ct = 0;
         }
     }
     free(pkt_buffer);
+    free(pkt_buffer_dec);
     thread_terminated(&lossy_pipes_thread_pool, lplp->thread_id);
     free(lplp);
     std::cout << "lp loop end" << std::endl;
 }
 
-void lossy_pipe_send_loop(void *param) {
+void lossy_pipe_send_loop(void* param) {
     struct lossy_pipe_loop_params* lplp = (struct lossy_pipe_loop_params*)param;
     struct lossy_pipe* lp = lplp->lp;
     int current_slot = 0;
     unsigned char* pkt_buffer = (unsigned char*)malloc(lp->mtu);
-    unsigned char* pkt_buffer_enc = nullptr;
+    unsigned char* pkt_buffer_enc = (unsigned char*)malloc(lp->mtu);
 
     int nothing_ct = 0;
     while (lp->n.state != NS_ERROR) {
         if (shared_memory_buffer_read_slot(&lp->smb, current_slot, pkt_buffer)) {
             nothing_ct = 0;
             int enc_len = 0;
-            int *pkt_len = (int *)&lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA];
-            unsigned char* pkt_buffer_enc = crypto_key_sym_encrypt(lp->k, &lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA], *pkt_len, &enc_len);
-            std::cout << "sending enc packet: " << enc_len << std::endl;
+            int* pkt_len = (int*)&lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA];
+            pkt_buffer_enc = crypto_key_sym_encrypt(lp->k, &lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA], *pkt_len, &enc_len, pkt_buffer_enc);
+            //std::cout << "sending enc packet: " << enc_len << std::endl;
             lp->n.send(&lp->n, pkt_buffer_enc, enc_len);
-            free(pkt_buffer_enc);
             current_slot = (current_slot + 1) % lp->smb.slots;
         } else {
             nothing_ct++;
             if (nothing_ct < 8) {
+                util_sleep(2);
             } else if (nothing_ct < 16) {
                 util_sleep(4);
-            } else if (nothing_ct < 32) {
+            }
+            else if (nothing_ct < 32) {
                 util_sleep(8);
-            } else if (nothing_ct < 64) {
+            }
+            else if (nothing_ct < 64) {
                 util_sleep(16);
-            } else {
+            }
+            else {
                 util_sleep(128);
             }
         }
     }
     free(pkt_buffer);
+    free(pkt_buffer_enc);
     thread_terminated(&lossy_pipes_thread_pool, lplp->thread_id);
-    free(lplp);  
+    free(lplp);
 }
