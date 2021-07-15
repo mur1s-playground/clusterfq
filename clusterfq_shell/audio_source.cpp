@@ -4,8 +4,10 @@
 #include "smb_interface.h"
 
 #include "../clusterfq/shared_memory_buffer.h"
+#include "../clusterfq/util.h"
 
 #include "../clusterfq_cl/clusterfq_cl.h"
+
 
 #include <iostream>
 
@@ -45,23 +47,6 @@ void audio_source_list_devices() {
 	}
 }
 
-void CALLBACK audio_source_process_callback(
-	HWAVEIN   hwi,
-	UINT      uMsg,
-	DWORD_PTR dwInstance,
-	DWORD_PTR dwParam1,
-	DWORD_PTR dwParam2) {
-	if (uMsg == WIM_CLOSE) {
-
-	}
-	else if (uMsg == WIM_DATA) {
-
-	}
-	else if (uMsg == WIM_CLOSE) {
-
-	}
-}
-
 void audio_source_prepare_hdr(struct audio_source* as, int id);
 
 void audio_source_connect(struct audio_source* as, int device_id, int channels, int samples_per_sec, int bits_per_sample, int lossy_pipe_id, int size, int slots) {
@@ -86,9 +71,7 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 		*len = AUDIO_DEVICE_PACKETSIZE;
 	}
 
-	//as->smb_size_req = channels * (bits_per_sample / 8) * samples_per_sec;
-
-	as->wave_status = waveInOpen(&as->wave_in_handle, device_id, &as->wave_format, (DWORD_PTR)&audio_source_process_callback, (DWORD_PTR)(void*)as, CALLBACK_FUNCTION);
+	as->wave_status = waveInOpen(&as->wave_in_handle, device_id, &as->wave_format, 0, 0, CALLBACK_NULL);
 
 	if (as->wave_status != MMSYSERR_NOERROR) {
 		std::cout << "wave status not ok: " << as->wave_status << std::endl;
@@ -108,8 +91,8 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 }
 
 void audio_source_prepare_hdr(struct audio_source* as, int id) {
-	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + sizeof(int)];
-	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - sizeof(int);
+	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int) + sizeof(unsigned long)];
+	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - 2 * sizeof(int) - sizeof(unsigned long);
 	as->wave_header_arr[id].dwBytesRecorded = 0;
 	as->wave_header_arr[id].dwUser = 0L;
 	as->wave_header_arr[id].dwFlags = 0L;
@@ -135,13 +118,27 @@ void audio_source_loop(void* param) {
 	as->smb_last_used_id = 0;
 
 	as->wave_status = waveInStart(as->wave_in_handle);
+	int ct = 0;
 
 	while (as->wave_status == MMSYSERR_NOERROR) {
 		do {
-			Sleep(33);
+			util_sleep(1);
 		} while (waveInUnprepareHeader(as->wave_in_handle, &as->wave_header_arr[as->smb_last_used_id], sizeof(WAVEHDR)) == WAVERR_STILLPLAYING);
+		
+		int* ct_ptr = (int*)&as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE + sizeof(int)];
+		*ct_ptr = ct;
 
-		int next_id = (ClusterFQ::ClusterFQ::shared_memory_buffer_write_slot_i(as->lp, as->smb_last_used_id, &as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE], AUDIO_DEVICE_PACKETSIZE) + 1) % as->lp_slots;
+		unsigned long* br_ptr = (unsigned long*)&as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int)];
+		*br_ptr = as->wave_header_arr[as->smb_last_used_id].dwBytesRecorded;
+
+		int c_id = 0;
+		do {
+			c_id = ClusterFQ::ClusterFQ::shared_memory_buffer_write_slot_i(as->lp, as->smb_last_used_id, &as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE], 2 * sizeof(int) + sizeof(unsigned long) + *br_ptr);
+			if (c_id == -1) util_sleep(1);
+		} while (c_id == -1);
+
+
+		int next_id = (c_id + 1) % as->lp_slots;
 
 		if (next_id != (as->smb_last_used_id + 1) % as->lp_slots) std::cout << "skipping" << std::endl;
 
@@ -152,6 +149,7 @@ void audio_source_loop(void* param) {
 		}
 
 		as->smb_last_used_id = next_id;
+		ct++;
 	}
 	std::cout << "audio_source_loop_ended" << std::endl;
 	//thread_terminated(&main_thread_pool, aslp->thread_id);

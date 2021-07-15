@@ -99,7 +99,7 @@ bool shared_memory_buffer_is_new(struct shared_memory_buffer* smb, int slot) {
 int shared_memory_buffer_write_slot(struct shared_memory_buffer* smb, int slot, unsigned char* data, unsigned int data_len) {
 	int slot_c = slot;
 	if (shared_memory_buffer_is_new(smb, slot)) {
-		if (smb->drop_skip > 0) {
+		if (smb->drop_skip >= 0) {
 			slot_c = (slot + smb->drop_skip) % smb->slots;
 		} else {
 			return -1;

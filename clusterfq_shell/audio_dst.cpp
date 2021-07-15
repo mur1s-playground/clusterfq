@@ -113,22 +113,14 @@ void audio_dst_connect(struct audio_dst* as, int device_id, int channels, int sa
 }
 
 void audio_dst_prepare_hdr(struct audio_dst* as, int id) {
-	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + sizeof(int)];
-	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - sizeof(int);
+	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int) + sizeof(unsigned long)];
+	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - 2 * sizeof(int) - sizeof(unsigned long);
 	as->wave_header_arr[id].dwBytesRecorded = 0;
 	as->wave_header_arr[id].dwUser = 0L;
 	as->wave_header_arr[id].dwFlags = 0L;
 	as->wave_header_arr[id].dwLoops = 0L;
 
 	MMRESULT rc = waveOutPrepareHeader(as->wave_out_handle, &as->wave_header_arr[id], sizeof(WAVEHDR));
-
-	if (rc != MMSYSERR_NOERROR) {
-		as->wave_status = rc;
-		std::cout << "header prep not ok" << std::endl;
-	} else {
-		std::cout << "header prep ok" << std::endl;
-		//rc = waveOutAddBuffer(as->wave_out_handle, &as->wave_header_arr[id], sizeof(WAVEHDR));
-	}
 }
 
 void audio_dst_loop(void* param) {
@@ -144,15 +136,19 @@ void audio_dst_loop(void* param) {
 
 	int local_slot_count = 0;
 
-	
+	int last_ct = 0;
 
 	while (as->wave_status == MMSYSERR_NOERROR) {
 		if (ClusterFQ::ClusterFQ::shared_memory_buffer_read_slot_i(as->lp, as->smb_last_used_id, &as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE])) {
-			//std::cout << "w: " << local_slot_count << std::endl;
+			int* ct_src = (int*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + sizeof(int)];
+			unsigned long* br_ptr = (unsigned long*)& as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + 2*sizeof(int)];
+			as->wave_header_arr[local_slot_count].dwBytesRecorded = *br_ptr;
+
+			if (last_ct > *ct_src) continue;
+			last_ct = *ct_src;
 			if (as->last_id > -1) {
 				mutex_wait_for(&as->out_lock);
 			}
-
 			as->wave_status = waveOutWrite(as->wave_out_handle, &as->wave_header_arr[local_slot_count], sizeof(WAVEHDR));
 
 			as->last_id = local_slot_count;
@@ -160,7 +156,7 @@ void audio_dst_loop(void* param) {
 			as->smb_last_used_id = (as->smb_last_used_id + 1) % as->lp_slots;
 			
 		} else {
-			util_sleep(8);
+			util_sleep(1);
 		}
 	}
 	std::cout << "audio_dst_loop_ended: " << std::endl;

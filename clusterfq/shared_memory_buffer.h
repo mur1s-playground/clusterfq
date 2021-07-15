@@ -30,7 +30,7 @@ struct shared_memory_buffer {
 	int size;
 	int slots;
 
-	unsigned int drop_skip;
+	int drop_skip;
 };
 
 bool shared_memory_buffer_init(struct shared_memory_buffer *smb, string name, int size, int slots, unsigned int drop_skip);

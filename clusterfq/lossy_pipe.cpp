@@ -75,7 +75,7 @@ bool lossy_pipe_init(struct lossy_pipe* lp, string descriptor, int mtu, unsigned
 
     std::cout << "smb initing" << std::endl;
 
-    if (shared_memory_buffer_init(&lp->smb, smb_name.str(), mtu, 50, 5)) {
+    if (shared_memory_buffer_init(&lp->smb, smb_name.str(), mtu, 200, 0)) {
 
         std::cout << "smb inited" << std::endl;
 
@@ -110,7 +110,7 @@ bool lossy_pipe_client_init(struct lossy_pipe* lp, string descriptor, int mtu, u
     stringstream smb_name;
     smb_name << descriptor << "_" << port << "_in";
 
-    shared_memory_buffer_init(&lp->smb, smb_name.str(), mtu, 50, 5);
+    shared_memory_buffer_init(&lp->smb, smb_name.str(), mtu, 200, 0);
 
     struct lossy_pipe_loop_params* lplp = new lossy_pipe_loop_params();
     lplp->lp = lp;
@@ -140,8 +140,12 @@ void lossy_pipe_loop(void* param) {
             pkt_buffer_dec = crypto_key_sym_decrypt(lp->k, pkt_buffer, out_len, &dec_out_len, pkt_buffer_dec);
             if (dec_out_len > 0) {
                 if (dec_out_len < lp->mtu) {
-                    shared_memory_buffer_write_slot(&lp->smb, current_slot, pkt_buffer_dec, dec_out_len);
-                    current_slot = (current_slot + 1) % lp->smb.slots;
+                    int c_s = current_slot;
+                    do {
+                        c_s = shared_memory_buffer_write_slot(&lp->smb, current_slot, pkt_buffer_dec, dec_out_len);
+                        if (c_s == -1) util_sleep(1);
+                    } while (c_s == -1);
+                    current_slot = (c_s + 1) % lp->smb.slots;
                     pkt_ct++;
                 }
             }
@@ -169,30 +173,30 @@ void lossy_pipe_send_loop(void* param) {
 
     int nothing_ct = 0;
     while (lp->n.state != NS_ERROR) {
-        if (shared_memory_buffer_read_slot(&lp->smb, current_slot, pkt_buffer)) {
+        if (shared_memory_buffer_read_slot(&lp->smb, current_slot, pkt_buffer)) { //BROKEN
             nothing_ct = 0;
             int enc_len = 0;
-            int* pkt_len = (int*)&lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA];
+            int* pkt_len = (int*)&lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA]; //pkt_buffer
             pkt_buffer_enc = crypto_key_sym_encrypt(lp->k, &lp->smb.buffer[current_slot * (lp->smb.size + SHAREDMEMORYBUFFER_SLOT_META_SIZE) + SHAREDMEMORYBUFFER_SLOT_DATA], *pkt_len, &enc_len, pkt_buffer_enc);
             //std::cout << "sending enc packet: " << enc_len << std::endl;
             lp->n.send(&lp->n, pkt_buffer_enc, enc_len);
             current_slot = (current_slot + 1) % lp->smb.slots;
         } else {
             nothing_ct++;
+            util_sleep(1);
+            /*
             if (nothing_ct < 8) {
                 util_sleep(2);
             } else if (nothing_ct < 16) {
                 util_sleep(4);
-            }
-            else if (nothing_ct < 32) {
+            } else if (nothing_ct < 32) {
                 util_sleep(8);
-            }
-            else if (nothing_ct < 64) {
+            } else if (nothing_ct < 64) {
                 util_sleep(16);
-            }
-            else {
+            }           else {
                 util_sleep(128);
             }
+            */
         }
     }
     free(pkt_buffer);
