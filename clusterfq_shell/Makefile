@@ -1,5 +1,11 @@
-all: clusterfq_shell.o const_defs.o mutex.o shell.o thread.o util.o
-	g++ -std=c++11 clusterfq_shell.o const_defs.o mutex.o shell.o thread.o util.o -lpthread -L./ -lclusterfq_cl -o clusterfq_shell
+all: audio_dst.o audio_source.o clusterfq_shell.o const_defs.o mutex.o shell.o smb_interface.o thread.o util.o
+	g++ -std=c++11 audio_dst.o audio_source.o clusterfq_shell.o const_defs.o mutex.o shell.o smb_interface.o thread.o util.o -lpthread -lasound -L./ -lclusterfq_cl -o clusterfq_shell
+
+audio_dst.o:
+	g++ -std=c++11 -c audio_dst.cpp
+
+audio_source.o:
+	g++ -std=c++11 -c audio_source.cpp
 
 clusterfq_shell.o:
 	g++ -std=c++11 -c clusterfq_shell.cpp
@@ -12,6 +18,9 @@ mutex.o:
 	
 shell.o:
 	g++ -std=c++11 -c shell.cpp
+	
+smb_interface.o:
+	g++ -std=c++11 -c smb_interface.cpp
 	
 thread.o:
 	g++ -std=c++11 -c ../clusterfq/thread.cpp

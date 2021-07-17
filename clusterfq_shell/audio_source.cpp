@@ -16,6 +16,7 @@ vector<struct audio_device> audio_source_devices;
 void audio_source_init_available_devices() {
 	audio_source_devices.clear();
 
+#ifdef _WIN32
 	unsigned int num_devices = waveInGetNumDevs();
 
 	for (int i = 0; i < num_devices; i++) {
@@ -37,6 +38,11 @@ void audio_source_init_available_devices() {
 
 		audio_source_devices.push_back(ad);
 	}
+#else 
+	char* tmp = util_issue_command("arecord -L");
+	std::cout << std::endl << tmp << std::endl;
+	free(tmp);
+#endif
 }
 
 void audio_source_list_devices() {
@@ -47,7 +53,9 @@ void audio_source_list_devices() {
 	}
 }
 
+#ifdef _WIN32
 void audio_source_prepare_hdr(struct audio_source* as, int id);
+#endif
 
 void audio_source_connect(struct audio_source* as, int device_id, int channels, int samples_per_sec, int bits_per_sample, int lossy_pipe_id, int size, int slots) {
 	audio_source_init_available_devices();
@@ -57,6 +65,7 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 
 	as->device_id = device_id;
 
+#ifdef _WIN32
 	as->wave_format.wFormatTag = WAVE_FORMAT_PCM;
 	as->wave_format.nChannels = channels;
 	as->wave_format.nSamplesPerSec = samples_per_sec;
@@ -64,6 +73,7 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 	as->wave_format.nBlockAlign = (channels * bits_per_sample) / 8;
 	as->wave_format.nAvgBytesPerSec = (channels * samples_per_sec * bits_per_sample) / 8;
 	as->wave_format.cbSize = 0;
+#endif
 
 	as->buffer = (unsigned char*) malloc(slots * AUDIO_DEVICE_PACKETSIZE);
 	for (int s = 0; s < slots; s++) {
@@ -71,6 +81,7 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 		*len = AUDIO_DEVICE_PACKETSIZE;
 	}
 
+#ifdef _WIN32
 	as->wave_status = waveInOpen(&as->wave_in_handle, device_id, &as->wave_format, 0, 0, CALLBACK_NULL);
 
 	if (as->wave_status != MMSYSERR_NOERROR) {
@@ -83,13 +94,15 @@ void audio_source_connect(struct audio_source* as, int device_id, int channels, 
 	for (int wh = 0; wh < as->lp_slots; wh++) {
 		audio_source_prepare_hdr(as, wh);
 	}
-	
+#endif
+
 	struct audio_source_loop_params* aslp = new struct audio_source_loop_params();
 	aslp->as = as;
 	//aslp->thread_id = thread_create(&main_thread_pool, &audio_source_loop, (void *)aslp);
 	audio_source_loop(aslp);
 }
 
+#ifdef _WIN32
 void audio_source_prepare_hdr(struct audio_source* as, int id) {
 	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int) + sizeof(unsigned long)];
 	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - 2 * sizeof(int) - sizeof(unsigned long);
@@ -102,12 +115,12 @@ void audio_source_prepare_hdr(struct audio_source* as, int id) {
 
 	if (rc != MMSYSERR_NOERROR) {
 		as->wave_status = rc;
-		std::cout << "header prep not ok" << std::endl;
+		std::cout << "header prop failed" << std::endl;
 	} else {
-		std::cout << "header prep ok" << std::endl;
 		rc = waveInAddBuffer(as->wave_in_handle, &as->wave_header_arr[id], sizeof(WAVEHDR));
 	}
 }
+#endif
 
 void audio_source_loop(void* param) {
 	std::cout << "audio_source_loop_started: " << AUDIO_DEVICE_PACKETSIZE <<std::endl;
@@ -117,6 +130,7 @@ void audio_source_loop(void* param) {
 
 	as->smb_last_used_id = 0;
 
+#ifdef _WIN32
 	as->wave_status = waveInStart(as->wave_in_handle);
 	int ct = 0;
 
@@ -151,6 +165,7 @@ void audio_source_loop(void* param) {
 		as->smb_last_used_id = next_id;
 		ct++;
 	}
+#endif
 	std::cout << "audio_source_loop_ended" << std::endl;
 	//thread_terminated(&main_thread_pool, aslp->thread_id);
 	free(aslp);

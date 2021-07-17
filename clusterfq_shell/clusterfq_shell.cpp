@@ -154,7 +154,11 @@ int main() {
                 audio_dsts_list_devices();
             } else if (strstr(args[0].c_str(), "audio_dst_connect") != nullptr) {
                 struct audio_dst* as = new struct audio_dst();
+#ifdef _WIN32
                 audio_dst_connect(as, stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
+#else 
+                audio_dst_connect(as, args[1], stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
+#endif
             }
             std::cout << response;
         }
