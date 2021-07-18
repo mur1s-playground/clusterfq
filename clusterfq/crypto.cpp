@@ -173,14 +173,14 @@ void crypto_key_reset_internal(struct Key* key, bool asym) {
 	if (key->mp_0 != nullptr) {
 		if (asym) {
 			RSA_free((RSA*)key->mp_0);
-		}
-		else {
+		} else {
 			free(key->mp_0);
 		}
 		key->mp_0 = nullptr;
 	}
 	if (key->mp_1 != nullptr) {
 		free(key->mp_1);
+		key->mp_1 = nullptr;
 	}
 }
 

@@ -815,7 +815,7 @@ bool contact_process_message(struct identity* i, struct contact* c, unsigned cha
 						free(c->session_key.private_key);
 						c->session_key.private_key = nullptr;
 					}
-					crypto_key_reset_internal(&c->session_key_inc, false);
+					crypto_key_reset_internal(&c->session_key, false);
 					mutex_release(&c->outgoing_messages_lock);
 
 					std::cout << "dropping session\n";

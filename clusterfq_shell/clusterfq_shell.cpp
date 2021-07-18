@@ -149,7 +149,11 @@ int main() {
                 audio_source_list_devices();
             } else if (strstr(args[0].c_str(), "audio_source_connect") != nullptr) {
                 struct audio_source* as = new struct audio_source();
+#ifdef _WIN32
                 audio_source_connect(as, stoi(args[1]), stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
+#else
+                audio_source_connect(as, args[1], stoi(args[2]), stoi(args[3]), stoi(args[4]), stoi(args[5]), stoi(args[6]), stoi(args[7]));
+#endif
             } else if (strstr(args[0].c_str(), "audio_dsts_list") != nullptr) {
                 audio_dsts_list_devices();
             } else if (strstr(args[0].c_str(), "audio_dst_connect") != nullptr) {

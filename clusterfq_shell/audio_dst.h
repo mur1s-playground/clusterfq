@@ -11,17 +11,7 @@ using namespace std;
 
 #include "../clusterfq/mutex.h"
 
-#ifdef _WIN32
-#else
-struct audio_format {
-	snd_pcm_format_t pcm_format;
-	unsigned int channels;
-	unsigned int rate;
-	unsigned int buffer_size;
-	unsigned int period_size;
-	int period_event;
-};
-#endif
+#include "audio_device.h"
 
 struct audio_dst {
 #ifdef _WIN32
@@ -35,9 +25,10 @@ struct audio_dst {
 	struct mutex out_lock;
 	int last_id;
 
+	struct audio_format wave_format;
+
 #ifdef _WIN32
 	HWAVEOUT wave_out_handle;
-	WAVEFORMATEX wave_format;
 
 	WAVEHDR* wave_header_arr;
 
@@ -45,12 +36,8 @@ struct audio_dst {
 #else
 	snd_pcm_t *wave_out_handle;
 
-	struct audio_format wave_out_format;
-
 	snd_pcm_hw_params_t *wave_out_hw_params;
 	snd_pcm_sw_params_t *wave_out_sw_params;
-
-
 #endif
 	unsigned char* buffer;
 

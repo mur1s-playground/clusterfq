@@ -42,6 +42,9 @@
     <ClCompile Include="audio_dst.cpp">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="audio_device.cpp">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="shell.h">

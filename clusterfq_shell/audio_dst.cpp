@@ -1,7 +1,5 @@
 #include "audio_dst.h"
 
-#include "audio_device.h"
-
 #include "smb_interface.h"
 
 #include "../clusterfq/shared_memory_buffer.h"
@@ -81,153 +79,7 @@ void CALLBACK audio_dst_process_callback(
 #ifdef _WIN32
 void audio_dst_prepare_hdr(struct audio_dst* as, int id);
 #else
-int audio_dst_set_hw_params(struct audio_dst *as) {
-	snd_pcm_t* handle = as->wave_out_handle;
-	snd_pcm_hw_params_t* params = as->wave_out_hw_params;
-	int err = 0;
 
-	err = snd_pcm_hw_params_any(handle, params);
-	if (err < 0) {
-		std::cout << "no playback configuration" << std::endl;
-		return err;
-	}
-
-	err = snd_pcm_hw_params_set_rate_resample(handle, params, 1);
-	if (err < 0) {
-		std::cout << "resampling setup failed for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-
-	err = snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
-	if (err < 0) {
-		std::cout << "err setting acces mode" << std::endl;
-		return err;
-	}
-
-	err = snd_pcm_hw_params_set_format(handle, params, as->wave_out_format.pcm_format);
-	if (err < 0) {
-		std::cout << "err setting format" << std::endl;
-		return err;
-	}
-
-	unsigned int rrate = as->wave_out_format.rate;
-	err = snd_pcm_hw_params_set_rate_near(handle, params, &rrate, 0);
-	if (err < 0) {
-		std::cout << "err setting rate" << std::endl;
-		return err;
-	}
-	if (rrate != as->wave_out_format.rate) {
-		std::cout << "err not as requested " << rrate << " != " << as->wave_out_format.rate << std::endl;
-		return -1;
-	}
-	std::cout << "rate: " << rrate << std::endl;
-
-	int dir;
-	unsigned int buffer_time = 1000000 / 16 * 16;
-	
-	err = snd_pcm_hw_params_set_buffer_time_near(handle, params, &buffer_time, &dir);
-	if (err < 0) {
-		std::cout << "err unable to set buffer time" << std::endl;
-		return err;
-	}
-	
-	snd_pcm_uframes_t size;
-	err = snd_pcm_hw_params_get_buffer_size(params, &size);
-	if (err < 0) {
-		std::cout << "err get buffer size for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	as->wave_out_format.buffer_size = size;
-	std::cout << "buffer_size: " << size << std::endl;
-	
-	unsigned int period_time = 1000000 / 16;
-	err = snd_pcm_hw_params_set_period_time_near(handle, params, &period_time, &dir);
-	if (err < 0) {
-		std::cout << "err set period time for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	
-	err = snd_pcm_hw_params_get_period_size(params, &size, &dir);
-	if (err < 0) {
-		std::cout << "err to get period size for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	
-	as->wave_out_format.period_size = size;
-	std::cout << "period_size: " << size << std::endl;
-
-	err = snd_pcm_hw_params(handle, params);
-	if (err < 0) {
-		std::cout << "err unable to set hw params for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	
-	return 0;
-}
-
-int audio_dst_set_sw_params(struct audio_dst* as) {
-	snd_pcm_t* handle = as->wave_out_handle;
-	snd_pcm_sw_params_t* swparams = as->wave_out_sw_params;
-	int err = 0;
-
-	err = snd_pcm_sw_params_current(handle, swparams);
-	if (err < 0) {
-		std::cout << "err unable to determine current swparams for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-
-	/* start the transfer when the buffer is almost full: */
-	/* (buffer_size / avail_min) * avail_min */
-	err = snd_pcm_sw_params_set_start_threshold(handle, swparams, (as->wave_out_format.buffer_size / as->wave_out_format.period_size) * as->wave_out_format.period_size);
-	if (err < 0) {
-		std::cout << "err unable to set start threshold mode for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-
-	/* allow the transfer when at least period_size samples can be processed */
-	/* or disable this mechanism when period event is enabled (aka interrupt like style processing) */
-	err = snd_pcm_sw_params_set_avail_min(handle, swparams, as->wave_out_format.period_event ? as->wave_out_format.buffer_size : as->wave_out_format.period_size);
-	if (err < 0) {
-		std::cout << "err unable to set avail min for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	/* enable period events when requested */
-	if (as->wave_out_format.period_event) {
-		err = snd_pcm_sw_params_set_period_event(handle, swparams, 1);
-		if (err < 0) {
-			std::cout << "err unable to set period event: " << snd_strerror(err) << std::endl;
-			return err;
-		}
-	}
-
-	/* write the parameters to the playback device */
-	err = snd_pcm_sw_params(handle, swparams);
-	if (err < 0) {
-		std::cout << "err unable to set sw params for playback: " << snd_strerror(err) << std::endl;
-		return err;
-	}
-	return 0;
-}
-
-int audio_dst_xrun_recovery(snd_pcm_t* handle, int err) {
-	std::cout << "stream recovery" << std::endl;
-	if (err == -EPIPE) {
-		err = snd_pcm_prepare(handle);
-		if (err < 0)
-			std::cout << "Can't recovery from underrun, prepare failed: " <<  snd_strerror(err) << std::endl;
-		return 0;
-	} else if (err == -ESTRPIPE) {
-		while ((err = snd_pcm_resume(handle)) == -EAGAIN)
-			sleep(1);
-		if (err < 0) {
-			err = snd_pcm_prepare(handle);
-			if (err < 0)
-				std::cout << "Can't recovery from suspend, prepare failed: " <<  snd_strerror(err) << std::endl;
-		}
-		return 0;
-	}
-	return err;
-}
 #endif
 
 #ifdef _WIN32
@@ -246,29 +98,7 @@ void audio_dst_connect(struct audio_dst* as, string device_name, int channels, i
 	as->device_name = device_name;
 #endif
 
-	mutex_init(&as->out_lock);
-	as->last_id = -1;
-
-#ifdef _WIN32
-	as->wave_format.wFormatTag = WAVE_FORMAT_PCM;
-	as->wave_format.nChannels = channels;
-	as->wave_format.nSamplesPerSec = samples_per_sec;
-	as->wave_format.wBitsPerSample = bits_per_sample;
-	as->wave_format.nBlockAlign = (channels * bits_per_sample) / 8;
-	as->wave_format.nAvgBytesPerSec = (channels * samples_per_sec * bits_per_sample) / 8;
-	as->wave_format.cbSize = 0;
-#else
-	as->device_name = device_name;
-
-	if (bits_per_sample == 8) {
-		as->wave_out_format.pcm_format = SND_PCM_FORMAT_U8;
-	} else if (bits_per_sample == 16) {
-		as->wave_out_format.pcm_format = SND_PCM_FORMAT_S16_LE;
-	}
-	as->wave_out_format.channels = channels;
-	as->wave_out_format.rate = samples_per_sec;
-	as->wave_out_format.period_event = 0;
-#endif
+	audio_device_set_format(&as->wave_format, channels, samples_per_sec, bits_per_sample);
 
 	as->buffer = (unsigned char*)malloc(slots * 2 * AUDIO_DEVICE_PACKETSIZE);
 	for (int s = 0; s < slots * 2; s++) {
@@ -276,8 +106,11 @@ void audio_dst_connect(struct audio_dst* as, string device_name, int channels, i
 		*len = AUDIO_DEVICE_PACKETSIZE;
 	}
 
+	mutex_init(&as->out_lock);
+	as->last_id = -1;
+
 #ifdef _WIN32
-	as->wave_status = waveOutOpen(&as->wave_out_handle, device_id, &as->wave_format, (DWORD_PTR)&audio_dst_process_callback, (DWORD_PTR)(void*)as, CALLBACK_FUNCTION);
+	as->wave_status = waveOutOpen(&as->wave_out_handle, device_id, &as->wave_format.wave_format, (DWORD_PTR)&audio_dst_process_callback, (DWORD_PTR)(void*)as, CALLBACK_FUNCTION);
 
 	if (as->wave_status != MMSYSERR_NOERROR) {
 		std::cout << "wave status not ok: " << as->wave_status << std::endl;
@@ -298,13 +131,13 @@ void audio_dst_connect(struct audio_dst* as, string device_name, int channels, i
 	}
 	snd_pcm_hw_params_alloca(&as->wave_out_hw_params);
 	
-	if (audio_dst_set_hw_params(as) < 0) {
+	if (audio_device_set_hw_params(as->wave_out_handle, as->wave_out_hw_params, &as->wave_format) < 0) {
 		std::cout << "error setting hw params" << std::endl;
 		return;
 	}
 	
 	snd_pcm_sw_params_alloca(&as->wave_out_sw_params);
-	if (audio_dst_set_sw_params(as) < 0) {
+	if (audio_device_set_sw_params(as->wave_out_handle, as->wave_out_sw_params, &as->wave_format) < 0) {
 		std::cout << "error setting sw params" << std::endl;
 		return;
 	}
@@ -320,8 +153,8 @@ void audio_dst_connect(struct audio_dst* as, string device_name, int channels, i
 
 #ifdef _WIN32
 void audio_dst_prepare_hdr(struct audio_dst* as, int id) {
-	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int) + sizeof(unsigned long)];
-	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - 2 * sizeof(int) - sizeof(unsigned long);
+	as->wave_header_arr[id].lpData = (LPSTR)&as->buffer[id * AUDIO_DEVICE_PACKETSIZE + 3 * sizeof(int)];
+	as->wave_header_arr[id].dwBufferLength = AUDIO_DEVICE_PACKETSIZE - 3 * sizeof(int);
 	as->wave_header_arr[id].dwBytesRecorded = 0;
 	as->wave_header_arr[id].dwUser = 0L;
 	as->wave_header_arr[id].dwFlags = 0L;
@@ -330,6 +163,27 @@ void audio_dst_prepare_hdr(struct audio_dst* as, int id) {
 	MMRESULT rc = waveOutPrepareHeader(as->wave_out_handle, &as->wave_header_arr[id], sizeof(WAVEHDR));
 }
 #else
+int audio_dst_xrun_recovery(snd_pcm_t* handle, int err) {
+	std::cout << "stream recovery" << std::endl;
+	if (err == -EPIPE) {
+		err = snd_pcm_prepare(handle);
+		if (err < 0)
+			std::cout << "Can't recovery from underrun, prepare failed: " << snd_strerror(err) << std::endl;
+		return 0;
+	}
+	else if (err == -ESTRPIPE) {
+		while ((err = snd_pcm_resume(handle)) == -EAGAIN)
+			sleep(1);
+		if (err < 0) {
+			err = snd_pcm_prepare(handle);
+			if (err < 0)
+				std::cout << "Can't recovery from suspend, prepare failed: " << snd_strerror(err) << std::endl;
+		}
+		return 0;
+	}
+	return err;
+}
+
 int audio_dst_wait_for_poll(snd_pcm_t* handle, struct pollfd* ufds, unsigned int count) {
 	unsigned short revents;
 
@@ -364,7 +218,7 @@ void audio_dst_loop(void* param) {
 #ifdef _WIN32
 	while (as->wave_status == MMSYSERR_NOERROR) {
 #else
-	int format_bytes = as->wave_out_format.channels * snd_pcm_format_physical_width(as->wave_out_format.pcm_format) / 8;
+	int format_bytes = as->wave_format.channels * snd_pcm_format_physical_width(as->wave_format.pcm_format) / 8;
 
 
 	struct pollfd* ufds;
@@ -399,9 +253,10 @@ void audio_dst_loop(void* param) {
 #ifdef _WIN32
 			as->wave_header_arr[local_slot_count].dwBytesRecorded = *br_ptr;
 #endif
-
+			/*
 			if (last_ct > *ct_src) continue;
 			last_ct = *ct_src;
+			*/
 			if (caught_up) {
 #ifdef _WIN32
 				if (as->last_id > -1) {

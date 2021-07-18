@@ -145,6 +145,7 @@
     <ClCompile Include="..\clusterfq\thread.cpp" />
     <ClCompile Include="..\clusterfq\util.cpp" />
     <ClCompile Include="..\clusterfq_cl\const_defs.cpp" />
+    <ClCompile Include="audio_device.cpp" />
     <ClCompile Include="audio_dst.cpp" />
     <ClCompile Include="audio_source.cpp" />
     <ClCompile Include="clusterfq_shell.cpp" />
