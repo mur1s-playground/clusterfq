@@ -107,12 +107,6 @@ void audio_source_connect(struct audio_source* as, string device_name, int chann
 		std::cout << "error setting hw params" << std::endl;
 		return;
 	}
-
-	snd_pcm_sw_params_alloca(&as->wave_in_sw_params);
-	if (audio_device_set_sw_params(as->wave_in_handle, as->wave_in_sw_params, &as->wave_format) < 0) {
-		std::cout << "error setting sw params" << std::endl;
-		return;
-	}
 #endif
 
 	struct audio_source_loop_params* aslp = new struct audio_source_loop_params();
@@ -158,6 +152,13 @@ void audio_source_loop(void* param) {
 	int format_bytes = as->wave_format.channels * snd_pcm_format_physical_width(as->wave_format.pcm_format) / 8;
 
 	int frames_per_packet = (AUDIO_DEVICE_PACKETSIZE - 3 * sizeof(int)) / format_bytes;
+	std::cout << "frames per packet: " << frames_per_packet << std::endl;
+
+	int err = snd_pcm_start(as->wave_in_handle);
+	if (err < 0) {
+		std::cout << "error starting pcm" << std::endl;
+	}
+
 	while (1) {
 #endif
 
@@ -177,10 +178,19 @@ void audio_source_loop(void* param) {
 #else
 		int read_f = 0;
 		while (read_f < frames_per_packet) {
-			int err = snd_pcm_readi(as->wave_in_handle, &as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE + 3 * sizeof(int) + read_f * format_bytes], frames_per_packet - read_f);
+			err = snd_pcm_readi(as->wave_in_handle, &as->buffer[as->smb_last_used_id * AUDIO_DEVICE_PACKETSIZE + 3 * sizeof(int) + read_f * format_bytes], frames_per_packet - read_f);
 			if (err == -EPIPE) {
 				std::cout << "overrun occurred" << std::endl;
 				snd_pcm_prepare(as->wave_in_handle);
+			} else if (err == -ESTRPIPE) {
+				std::cout << "-estripe" << std::endl;
+				while ((err = snd_pcm_resume(as->wave_in_handle)) == -EAGAIN)
+					sleep(1);
+				if (err < 0) {
+					err = snd_pcm_prepare(as->wave_in_handle);
+					if (err < 0)
+						std::cout << "Can't recovery from suspend, prepare failed: " << snd_strerror(err) << std::endl;
+				}
 			} else if (err < 0) {
 				std::cout << "error from read: " << snd_strerror(err) << std::endl;
 				break;
@@ -188,7 +198,7 @@ void audio_source_loop(void* param) {
 				read_f += err;
 			}
 		}
-		*br_ptr = frames_per_packet;
+		*br_ptr = frames_per_packet * format_bytes;
 #endif
 		int c_id = 0;
 		do {
