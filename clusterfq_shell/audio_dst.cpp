@@ -122,14 +122,15 @@ int audio_dst_set_hw_params(struct audio_dst *as) {
 	}
 	std::cout << "rate: " << rrate << std::endl;
 
-	unsigned int buffer_time = 500000;
 	int dir;
+	unsigned int buffer_time = 1000000 / 16 * 16;
+	
 	err = snd_pcm_hw_params_set_buffer_time_near(handle, params, &buffer_time, &dir);
 	if (err < 0) {
 		std::cout << "err unable to set buffer time" << std::endl;
 		return err;
 	}
-
+	
 	snd_pcm_uframes_t size;
 	err = snd_pcm_hw_params_get_buffer_size(params, &size);
 	if (err < 0) {
@@ -137,19 +138,21 @@ int audio_dst_set_hw_params(struct audio_dst *as) {
 		return err;
 	}
 	as->wave_out_format.buffer_size = size;
-
-	unsigned int period_time = 200000;
+	std::cout << "buffer_size: " << size << std::endl;
+	
+	unsigned int period_time = 1000000 / 16;
 	err = snd_pcm_hw_params_set_period_time_near(handle, params, &period_time, &dir);
 	if (err < 0) {
 		std::cout << "err set period time for playback: " << snd_strerror(err) << std::endl;
 		return err;
 	}
-
+	
 	err = snd_pcm_hw_params_get_period_size(params, &size, &dir);
 	if (err < 0) {
 		std::cout << "err to get period size for playback: " << snd_strerror(err) << std::endl;
 		return err;
 	}
+	
 	as->wave_out_format.period_size = size;
 	std::cout << "period_size: " << size << std::endl;
 
@@ -326,6 +329,19 @@ void audio_dst_prepare_hdr(struct audio_dst* as, int id) {
 
 	MMRESULT rc = waveOutPrepareHeader(as->wave_out_handle, &as->wave_header_arr[id], sizeof(WAVEHDR));
 }
+#else
+int audio_dst_wait_for_poll(snd_pcm_t* handle, struct pollfd* ufds, unsigned int count) {
+	unsigned short revents;
+
+	while (1) {
+		poll(ufds, count, -1);
+		snd_pcm_poll_descriptors_revents(handle, ufds, count, &revents);
+		if (revents & POLLERR)
+			return -EIO;
+		if (revents & POLLOUT)
+			return 0;
+	}
+}
 #endif
 
 void audio_dst_loop(void* param) {
@@ -343,16 +359,42 @@ void audio_dst_loop(void* param) {
 
 	int last_ct = 0;
 
+	bool caught_up = false;
+
 #ifdef _WIN32
 	while (as->wave_status == MMSYSERR_NOERROR) {
 #else
 	int format_bytes = as->wave_out_format.channels * snd_pcm_format_physical_width(as->wave_out_format.pcm_format) / 8;
 
+
+	struct pollfd* ufds;
+	double phase = 0;
+	signed short* ptr;
+	int err, count, cptr, init;
+
+	count = snd_pcm_poll_descriptors_count(as->wave_out_handle);
+	if (count <= 0) {
+		std::cout << "Invalid poll descriptors count" << std::endl;
+		return;
+	}
+
+	ufds = (struct pollfd *) malloc(sizeof(struct pollfd) * count);
+	if (ufds == NULL) {
+		std::cout << "No enough memory" << std::endl;
+		return;
+	}
+	if ((err = snd_pcm_poll_descriptors(as->wave_out_handle, ufds, count)) < 0) {
+		std::cout << "Unable to obtain poll descriptors for playback: " <<  snd_strerror(err) << std::endl;
+		return;
+	}
+
+	init = 1;
+
 	while (1) {
 #endif
 		if (ClusterFQ::ClusterFQ::shared_memory_buffer_read_slot_i(as->lp, as->smb_last_used_id, &as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE])) {
 			int* ct_src = (int*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + sizeof(int)];
-			unsigned long* br_ptr = (unsigned long*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int)];
+			int* br_ptr = (int*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int)];
 
 #ifdef _WIN32
 			as->wave_header_arr[local_slot_count].dwBytesRecorded = *br_ptr;
@@ -360,37 +402,77 @@ void audio_dst_loop(void* param) {
 
 			if (last_ct > *ct_src) continue;
 			last_ct = *ct_src;
-			if (as->last_id > -1) {
-				mutex_wait_for(&as->out_lock);
-			}
+			if (caught_up) {
 #ifdef _WIN32
-			as->wave_status = waveOutWrite(as->wave_out_handle, &as->wave_header_arr[local_slot_count], sizeof(WAVEHDR));
-#else
-			char* ptr = (char*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + 2 * sizeof(int) + sizeof(unsigned long)];
-			int cptr = (int)*br_ptr / format_bytes;
-			int err = 0;
-			while (cptr > 0) {
-				err = snd_pcm_writei(as->wave_out_handle, ptr, cptr);
-				if (err == -EAGAIN)
-					continue;
-				if (err < 0) {
-					if (audio_dst_xrun_recovery(as->wave_out_handle, err) < 0 ) {
-						std::cout << "write error: " << snd_strerror(err) << std::endl;
-						return;
-					}
-					break;
+				if (as->last_id > -1) {
+					mutex_wait_for(&as->out_lock);
 				}
-				ptr += err * format_bytes;
-				cptr -= err;
-			}
-			mutex_release(&as->out_lock);
-#endif
 
+				as->wave_status = waveOutWrite(as->wave_out_handle, &as->wave_header_arr[local_slot_count], sizeof(WAVEHDR));
+#else
+
+				int err = 0;
+
+				if (!init) {
+					err = audio_dst_wait_for_poll(as->wave_out_handle, ufds, count);
+					if (err < 0) {
+						if (snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_XRUN ||
+							snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_SUSPENDED) {
+							err = snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_XRUN ? -EPIPE : -ESTRPIPE;
+							if (audio_dst_xrun_recovery(as->wave_out_handle, err) < 0) {
+								std::cout << "Write error: " << snd_strerror(err) << std::endl;
+								return;
+							}
+							init = 1;
+						} else {
+							std::cout << "Wait for poll failed" << std::endl;
+							return;
+						}
+					}
+				}
+
+				char* ptr = (char*)&as->buffer[local_slot_count * AUDIO_DEVICE_PACKETSIZE + 3 * sizeof(int)];
+				int cptr = (int)*br_ptr / format_bytes;
+
+				while (cptr > 0) {
+					err = snd_pcm_writei(as->wave_out_handle, ptr, cptr);
+					if (err < 0) {
+						if (audio_dst_xrun_recovery(as->wave_out_handle, err) < 0) {
+							std::cout << "Write error: " << snd_strerror(err) << std::endl;
+							return;
+						}
+						init = 1;
+						break;
+					}
+					if (snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_RUNNING) init = 0;
+					ptr += err * format_bytes;
+					cptr -= err;
+					if (cptr == 0) break;
+
+					err = audio_dst_wait_for_poll(as->wave_out_handle, ufds, count);
+					if (err < 0) {
+						if (snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_XRUN ||
+							snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_SUSPENDED) {
+							err = snd_pcm_state(as->wave_out_handle) == SND_PCM_STATE_XRUN ? -EPIPE : -ESTRPIPE;
+							if (audio_dst_xrun_recovery(as->wave_out_handle, err) < 0) {
+								std::cout << "Write error: " << snd_strerror(err) << std::endl;
+								return;
+							}
+							init = 1;
+						} else {
+							std::cout << "Wait for poll failed" << std::endl;
+							return;
+						}
+					}
+				}
+#endif
+			}
 			as->last_id = local_slot_count;
 			local_slot_count = (local_slot_count + 1) % (as->lp_slots * 2);
 			as->smb_last_used_id = (as->smb_last_used_id + 1) % as->lp_slots;
 			
 		} else {
+			caught_up = true;
 			util_sleep(1);
 		}
 	}
